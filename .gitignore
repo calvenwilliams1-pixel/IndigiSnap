@@ -13,3 +13,6 @@ app/build/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Test media
+go-backend/IndigiSnap/
