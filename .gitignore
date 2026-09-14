@@ -1,9 +1,6 @@
-# Gradle
 .gradle/
 build/
 !gradle/wrapper/gradle-wrapper.jar
-
-# Android
 *.apk
 *.aab
 *.ap_
@@ -11,12 +8,8 @@ build/
 local.properties
 .cxx/
 app/build/
-
-# IDE
 .idea/
 *.iml
 .vscode/
-
-# OS
 .DS_Store
 Thumbs.db
