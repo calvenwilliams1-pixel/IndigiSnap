@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>IndigiSnap</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#07040d">
+<style>
+body {
+  background: #07040d;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  padding: 30px;
+  margin: 0;
+}
+h1 {
+  color: #ff00ff;
+  text-shadow: 0 0 20px #ff00ff, 0 0 40px #ff00ff;
+  letter-spacing: 4px;
+  text-align: center;
+  font-size: 42px;
+}
+.subtitle {
+  color: #00ff99;
+  text-align: center;
+  letter-spacing: 2px;
+  margin-bottom: 40px;
+}
+.section {
+  border: 3px solid #ff00ff;
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 20px;
+  background: rgba(18, 8, 34, 0.8);
+}
+.label { color: #00ff99; font-weight: bold; }
+.value { color: #fff; }
+.tile {
+  border: 3px solid #00ff99;
+  border-radius: 15px;
+  padding: 10px;
+  margin: 5px 0;
+}
+.empty { color: #666; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>INDIGISNAP</h1>
+<p class="subtitle">✦ Go Backend + WebView ✦</p>
+
+<div class="section">
+  <div><span class="label">Folder:</span> <span class="value">{{ if .Folder }}{{ .Folder }}{{ else }}(root){{ end }}</span></div>
+  <div><span class="label">Page:</span> <span class="value">{{ .Page }} / {{ .TotalPages }}</span></div>
+  <div><span class="label">Sort:</span> <span class="value">{{ .SortBy }}</span></div>
+  <div><span class="label">Filter:</span> <span class="value">{{ .FilterType }}</span></div>
+  <div><span class="label">Logo:</span> <span class="value">{{ if .LogoURL }}{{ .LogoURL }}{{ else }}(none){{ end }}</span></div>
+</div>
+
+<div class="section">
+  <div class="label">Breadcrumbs:</div>
+  {{ range .Breadcrumbs }}
+    <span class="value">{{ .Label }}</span>
+  {{ else }}
+    <span class="empty">(none)</span>
+  {{ end }}
+</div>
+
+<div class="section">
+  <div class="label">Folders ({{ len .Items }}):</div>
+  {{ range .Items }}
+    <div class="tile">📁 {{ .Name }}</div>
+  {{ else }}
+    <div class="empty">(no folders)</div>
+  {{ end }}
+</div>
+
+<div class="section">
+  <div class="label">Media ({{ len .Images }}):</div>
+  {{ range .Images }}
+    <div class="tile">{{ if .IsVideo }}🎬{{ else }}🖼️{{ end }} {{ .Name }}</div>
+  {{ else }}
+    <div class="empty">(no media)</div>
+  {{ end }}
+</div>
+
+<div class="section">
+  <div class="label">Template rendering:</div>
+  <div class="value">✅ This page is rendered by Go html/template, embedded from interface.html</div>
+</div>
+
+</body>
+</html>

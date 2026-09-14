@@ -1,10 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/meta"
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/ui"
 )
 
 func main() {
@@ -22,21 +24,31 @@ func main() {
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprintln(w, "ok")
+		w.Write([]byte("ok\n"))
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		data := ui.TemplateData{
+			Folder:      "",
+			Items:       []ui.FolderItem{},
+			Images:      []ui.MediaItem{},
+			Meta:        ui.FolderMeta{Sort: "Newest"},
+			Recents:     []ui.Recent{},
+			Page:        1,
+			TotalPages:  1,
+			LogoURL:     "",
+			SortBy:      "newest",
+			FilterType:  "all",
+			Breadcrumbs: toUIBreadcrumbs(meta.GetBreadcrumbs("")),
+		}
+		html, err := ui.Render(data)
+		if err != nil {
+			log.Printf("Template render error: %v", err)
+			http.Error(w, "Template error: "+err.Error(), 500)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>IndigiSnap</title></head>
-<body style="background:#07040d;color:#fff;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column;">
-<div style="font-size:5rem;">👾</div>
-<h1 style="color:#ff00ff;text-shadow:0 0 20px #ff00ff;letter-spacing:4px;">INDIGISNAP</h1>
-<p style="color:#00ff99;">Go backend running</p>
-<p style="opacity:0.6;font-size:0.9rem;">Base dir: %s</p>
-</body>
-</html>`, baseDir)
+		w.Write([]byte(html))
 	})
 
 	addr := "127.0.0.1:" + port
@@ -45,4 +57,13 @@ func main() {
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// toUIBreadcrumbs converts meta.Breadcrumb to ui.Breadcrumb.
+func toUIBreadcrumbs(in []meta.Breadcrumb) []ui.Breadcrumb {
+	out := make([]ui.Breadcrumb, 0, len(in))
+	for _, b := range in {
+		out = append(out, ui.Breadcrumb{Label: b.Label, Path: b.URL})
+	}
+	return out
 }
