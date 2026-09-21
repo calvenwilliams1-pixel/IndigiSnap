@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/handlers"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/meta"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/ui"
 )
@@ -20,6 +21,13 @@ func main() {
 		baseDir = "./IndigiSnap"
 	}
 
+	// Make sure base dir exists
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		log.Fatalf("Cannot create base dir %s: %v", baseDir, err)
+	}
+
+	browseHandler := handlers.NewBrowseHandler(baseDir)
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +35,14 @@ func main() {
 		w.Write([]byte("ok\n"))
 	})
 
+	mux.Handle("/browse", browseHandler)
+	mux.Handle("/browse/", browseHandler)
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
 		data := ui.TemplateData{
 			Folder:      "",
 			Items:       []ui.FolderItem{},
