@@ -1,10 +1,15 @@
 package com.indigisnap.app
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
 
@@ -17,73 +22,80 @@ class MainActivity : AppCompatActivity() {
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
+        webView.settings.databaseEnabled = true
+        webView.settings.allowFileAccess = true
         webView.webViewClient = WebViewClient()
 
-        // For Week 1, we just show a static page.
-        // Later, we'll load http://127.0.0.1:5000
-        webView.loadDataWithBaseURL(
-            "file:///android_asset/",
-            HTML_PLACEHOLDER,
+        setContentView(webView)
+
+        // Start the foreground service that runs the Go server
+        val serviceIntent = Intent(this, ServerService::class.java)
+        ContextCompat.startForegroundService(this, serviceIntent)
+
+        // Show a brief loading screen while the server boots
+        webView.loadData(
+            """
+            <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+            <style>body{background:#07040d;color:#fff;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0}
+            h1{color:#ff00ff;text-shadow:0 0 20px #ff00ff;letter-spacing:4px;font-size:2rem}
+            .icon{font-size:4rem;margin-bottom:1rem}
+            p{color:#00ff99}</style></head>
+            <body><div class="icon">👾</div><h1>INDIGISNAP</h1><p>Loading...</p></body></html>
+            """.trimIndent(),
             "text/html",
-            "UTF-8",
-            null
+            "UTF-8"
         )
 
-        setContentView(webView)
+        // Poll the server until it responds, then load the real UI
+        waitForServerAndLoad()
+    }
+
+    private fun waitForServerAndLoad() {
+        thread {
+            val maxAttempts = 50
+            var loaded = false
+            for (i in 1..maxAttempts) {
+                if (isServerUp()) {
+                    loaded = true
+                    break
+                }
+                Thread.sleep(100)
+            }
+            runOnUiThread {
+                if (loaded) {
+                    webView.loadUrl("http://127.0.0.1:8080/browse")
+                } else {
+                    webView.loadData(
+                        "<html><body style='background:#07040d;color:#fff;font-family:monospace;padding:30px'><h2 style='color:#ff0055'>Server did not start</h2><p>Check logcat for errors.</p></body></html>",
+                        "text/html",
+                        "UTF-8"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun isServerUp(): Boolean {
+        return try {
+            val url = URL("http://127.0.0.1:8080/health")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 500
+            conn.readTimeout = 500
+            conn.requestMethod = "GET"
+            val code = conn.responseCode
+            conn.disconnect()
+            code == 200
+        } catch (e: Exception) {
+            false
+        }
     }
 
     override fun onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack()
         } else {
+            @Suppress("DEPRECATION")
             super.onBackPressed()
         }
-    }
-
-    companion object {
-        private const val HTML_PLACEHOLDER = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                    body {
-                        background: #07040d;
-                        color: #ffffff;
-                        font-family: 'Courier New', monospace;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        height: 100vh;
-                        margin: 0;
-                        text-align: center;
-                        flex-direction: column;
-                    }
-                    h1 {
-                        color: #ff00ff;
-                        text-shadow: 0 0 20px #ff00ff, 0 0 40px #ff00ff;
-                        font-size: 2.5rem;
-                        letter-spacing: 4px;
-                    }
-                    p {
-                        color: #00ff99;
-                        font-size: 1.2rem;
-                    }
-                    .icon {
-                        font-size: 5rem;
-                        margin-bottom: 2rem;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="icon">👾</div>
-                <h1>INDIGISNAP</h1>
-                <p>Hello from IndigiSnap</p>
-                <p style="font-size: 0.9rem; opacity: 0.6; margin-top: 2rem;">
-                    Week 1: Pipeline proven ✅
-                </p>
-            </body>
-            </html>
-        """
     }
 }
