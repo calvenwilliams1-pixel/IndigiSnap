@@ -21,11 +21,22 @@ func main() {
 		baseDir = "./IndigiSnap"
 	}
 
-	// Make sure base dir exists
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		log.Fatalf("Cannot create base dir %s: %v", baseDir, err)
 	}
 
+	mux := buildMux(baseDir)
+	addr := "127.0.0.1:" + port
+	log.Printf("IndigiSnap Go backend starting on %s", addr)
+	log.Printf("Base dir: %s", baseDir)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// buildMux registers all HTTP routes and returns the mux.
+// Shared between the standalone main() and the JNI StartServer entry point.
+func buildMux(baseDir string) *http.ServeMux {
 	browseHandler := handlers.NewBrowseHandler(baseDir)
 	viewHandler := handlers.NewViewHandler(baseDir)
 	actionHandler := handlers.NewActionHandler(baseDir)
@@ -112,15 +123,9 @@ func main() {
 		w.Write([]byte(html))
 	})
 
-	addr := "127.0.0.1:" + port
-	log.Printf("IndigiSnap Go backend starting on %s", addr)
-	log.Printf("Base dir: %s", baseDir)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatal(err)
-	}
+	return mux
 }
 
-// toUIBreadcrumbs converts meta.Breadcrumb to ui.Breadcrumb.
 func toUIBreadcrumbs(in []meta.Breadcrumb) []ui.Breadcrumb {
 	out := make([]ui.Breadcrumb, 0, len(in))
 	for _, b := range in {
