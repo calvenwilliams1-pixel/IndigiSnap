@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/meta"
@@ -13,13 +14,23 @@ import (
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/ui"
 )
 
-// BrowseHandler serves GET /browse and GET /browse/<path>.
 type BrowseHandler struct {
 	BaseDir string
 }
 
 func NewBrowseHandler(baseDir string) *BrowseHandler {
 	return &BrowseHandler{BaseDir: baseDir}
+}
+
+// internal file record for sorting/filtering
+type fileRecord struct {
+	Name       string
+	RelPath    string
+	IsVideo    bool
+	Size       int64
+	ModTime    int64
+	CreateTime int64
+	IsFavorite bool
 }
 
 func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -38,11 +49,42 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create the folder if it doesn't exist yet (matches Flask behavior)
 	if err := os.MkdirAll(fullPath, 0755); err != nil {
 		log.Printf("MkdirAll failed for %s: %v", fullPath, err)
 		http.Error(w, "Cannot create folder: "+err.Error(), 500)
 		return
+	}
+
+	// Parse query params
+	sortBy := r.URL.Query().Get("sort_by")
+	if sortBy == "" {
+		sortBy = "newest"
+	}
+	filterType := r.URL.Query().Get("filter_type")
+	if filterType == "" {
+		filterType = "all"
+	}
+
+	// Read folder metadata (contains saved sort)
+	folderMeta := meta.GetMeta(fullPath)
+
+	// If no explicit sort_by in URL, use folder's saved sort
+	if r.URL.Query().Get("sort_by") == "" && folderMeta.Sort != "" {
+		switch folderMeta.Sort {
+		case "Newest":
+			sortBy = "newest"
+		case "Oldest":
+			sortBy = "oldest"
+		case "A-Z":
+			sortBy = "name"
+		}
+	}
+
+	// Read favorites
+	favorites := meta.LoadFavorites(h.BaseDir)
+	favSet := make(map[string]bool, len(favorites))
+	for _, f := range favorites {
+		favSet[f] = true
 	}
 
 	entries, err := os.ReadDir(fullPath)
@@ -53,7 +95,7 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	folders := []ui.FolderItem{}
-	media := []ui.MediaItem{}
+	media := []fileRecord{}
 
 	for _, entry := range entries {
 		name := entry.Name()
@@ -81,39 +123,123 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		info, err := entry.Info()
+		var size int64
+		var modTime int64
+		var createTime int64
+		if err == nil {
+			size = info.Size()
+			modTime = info.ModTime().Unix()
+			createTime = info.ModTime().Unix() // Go doesn't expose ctime portably
+		}
+
 		rel := name
 		if folder != "" {
 			rel = folder + "/" + name
 		}
 
-		isVid := security.IsVideoFile(name)
-		mediaType := "image"
-		if isVid {
-			mediaType = "video"
-		}
-
-		media = append(media, ui.MediaItem{
+		media = append(media, fileRecord{
 			Name:       name,
-			RelPath:    url.QueryEscape(rel),
-			IsVideo:    isVid,
-			Type:       mediaType,
-			IsFavorite: false,
+			RelPath:    rel,
+			IsVideo:    security.IsVideoFile(name),
+			Size:       size,
+			ModTime:    modTime,
+			CreateTime: createTime,
+			IsFavorite: favSet[rel],
 		})
 	}
 
-	log.Printf("Browse %q: %d folders, %d media", folder, len(folders), len(media))
+	// Apply filter
+	switch filterType {
+	case "images":
+		filtered := media[:0]
+		for _, m := range media {
+			if !m.IsVideo {
+				filtered = append(filtered, m)
+			}
+		}
+		media = filtered
+	case "videos":
+		filtered := media[:0]
+		for _, m := range media {
+			if m.IsVideo {
+				filtered = append(filtered, m)
+			}
+		}
+		media = filtered
+	case "favorites":
+		filtered := media[:0]
+		for _, m := range media {
+			if m.IsFavorite {
+				filtered = append(filtered, m)
+			}
+		}
+		media = filtered
+	}
+
+	// Apply sort to folders
+	switch sortBy {
+	case "name":
+		sort.Slice(folders, func(i, j int) bool {
+			return strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
+		})
+	default:
+		sort.Slice(folders, func(i, j int) bool {
+			return strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
+		})
+	}
+
+	// Apply sort to media
+	switch sortBy {
+	case "name":
+		sort.Slice(media, func(i, j int) bool {
+			return strings.ToLower(media[i].Name) < strings.ToLower(media[j].Name)
+		})
+	case "size":
+		sort.Slice(media, func(i, j int) bool {
+			return media[i].Size > media[j].Size
+		})
+	case "oldest":
+		sort.Slice(media, func(i, j int) bool {
+			return media[i].CreateTime < media[j].CreateTime
+		})
+	default: // newest
+		sort.Slice(media, func(i, j int) bool {
+			return media[i].CreateTime > media[j].CreateTime
+		})
+	}
+
+	// Convert to UI media items
+	uiMedia := make([]ui.MediaItem, 0, len(media))
+	for _, m := range media {
+		mediaType := "image"
+		if m.IsVideo {
+			mediaType = "video"
+		}
+		uiMedia = append(uiMedia, ui.MediaItem{
+			Name:       m.Name,
+			RelPath:    url.QueryEscape(m.RelPath),
+			IsVideo:    m.IsVideo,
+			Type:       mediaType,
+			Size:       m.Size,
+			IsFavorite: m.IsFavorite,
+		})
+	}
+
+	log.Printf("Browse %q: %d folders, %d media (sort=%s filter=%s)",
+		folder, len(folders), len(uiMedia), sortBy, filterType)
 
 	data := ui.TemplateData{
 		Folder:      folder,
 		Items:       folders,
-		Images:      media,
-		Meta:        ui.FolderMeta{Sort: "Newest"},
+		Images:      uiMedia,
+		Meta:        ui.FolderMeta{Sort: folderMeta.Sort},
 		Recents:     []ui.Recent{},
 		Page:        1,
 		TotalPages:  1,
 		LogoURL:     "",
-		SortBy:      "newest",
-		FilterType:  "all",
+		SortBy:      sortBy,
+		FilterType:  filterType,
 		Breadcrumbs: toUIBreadcrumbs(meta.GetBreadcrumbs(folder)),
 	}
 
