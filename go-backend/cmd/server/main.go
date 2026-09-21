@@ -27,6 +27,7 @@ func main() {
 	}
 
 	browseHandler := handlers.NewBrowseHandler(baseDir)
+	viewHandler := handlers.NewViewHandler(baseDir)
 
 	mux := http.NewServeMux()
 
@@ -37,6 +38,7 @@ func main() {
 
 	mux.Handle("/browse", browseHandler)
 	mux.Handle("/browse/", browseHandler)
+	mux.Handle("/view/", viewHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
