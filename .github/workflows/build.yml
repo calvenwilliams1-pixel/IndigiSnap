@@ -22,11 +22,22 @@ jobs:
           go-version: '1.22'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q commandlinetools-linux-11076708_latest.zip
+          mv cmdline-tools latest
+          rm commandlinetools-linux-11076708_latest.zip
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
 
       - name: Install Android SDK components
         run: |
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
 
       - name: Build Go libraries
         run: |
@@ -35,12 +46,10 @@ jobs:
           cd go-backend
           NDK=$ANDROID_HOME/ndk/25.2.9519653
           TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
-
           CGO_ENABLED=1 GOOS=android GOARCH=arm64 \
             CC=$TOOLCHAIN/bin/aarch64-linux-android24-clang \
             go build -buildmode=c-shared \
             -o ../app/src/main/jniLibs/arm64-v8a/libindigisnap.so ./cmd/server
-
           CGO_ENABLED=1 GOOS=android GOARCH=arm \
             CC=$TOOLCHAIN/bin/armv7a-linux-androideabi24-clang \
             go build -buildmode=c-shared \
