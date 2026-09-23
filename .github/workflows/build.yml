@@ -20,15 +20,26 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: true
+          cache-dependency-path: go-backend/go.sum
+
+      - name: Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            $HOME/android-sdk
+          key: android-sdk-${{ runner.os }}-ndk25-v1
 
       - name: Setup Android SDK
         run: |
-          mkdir -p $HOME/android-sdk/cmdline-tools
-          cd $HOME/android-sdk/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q commandlinetools-linux-11076708_latest.zip
-          mv cmdline-tools latest
-          rm commandlinetools-linux-11076708_latest.zip
+          if [ ! -d "$HOME/android-sdk/cmdline-tools/latest" ]; then
+            mkdir -p $HOME/android-sdk/cmdline-tools
+            cd $HOME/android-sdk/cmdline-tools
+            wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q commandlinetools-linux-11076708_latest.zip
+            mv cmdline-tools latest
+            rm commandlinetools-linux-11076708_latest.zip
+          fi
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
@@ -36,8 +47,12 @@ jobs:
 
       - name: Install Android SDK components
         run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+          if [ ! -d "$HOME/android-sdk/ndk/25.2.9519653" ]; then
+            yes | sdkmanager --licenses > /dev/null 2>&1 || true
+            sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+          else
+            echo "SDK components already cached"
+          fi
 
       - name: Build Go libraries
         run: |
@@ -55,27 +70,21 @@ jobs:
             go build -buildmode=c-shared \
             -o ../app/src/main/jniLibs/armeabi-v7a/libindigisnap.so ./cmd/server
 
-      - name: Verify Go libraries were built
-        run: |
-          echo "=== arm64 dir ==="
-          ls -la app/src/main/jniLibs/arm64-v8a/ || echo "MISSING arm64 DIR"
-          echo "=== armv7 dir ==="
-          ls -la app/src/main/jniLibs/armeabi-v7a/ || echo "MISSING armv7 DIR"
-          echo "=== find all .so ==="
-          find app/src/main/jniLibs -type f || echo "NOTHING IN jniLibs"
-
       - name: Setup local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
-
-      - name: Inspect APK contents
-        run: |
-          echo "=== .so files in APK ==="
-          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -E "\.so" || echo "NO .so FILES IN APK"
-          echo "=== lib/ folder in APK ==="
-          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep "lib/" || echo "NO lib/ FOLDER IN APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
