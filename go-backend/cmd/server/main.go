@@ -40,6 +40,10 @@ func buildMux(baseDir string) *http.ServeMux {
 	browseHandler := handlers.NewBrowseHandler(baseDir)
 	viewHandler := handlers.NewViewHandler(baseDir)
 	actionHandler := handlers.NewActionHandler(baseDir)
+	infoHandler := handlers.NewInfoHandler(baseDir)
+	browserHandler := handlers.NewBrowserHandler(baseDir)
+	batchHandler := handlers.NewBatchHandler(baseDir)
+	dupesHandler := handlers.NewDupesHandler(baseDir)
 
 	mux := http.NewServeMux()
 
@@ -101,6 +105,47 @@ func buildMux(baseDir string) *http.ServeMux {
 		}
 		actionHandler.Upload(w, r)
 	})
+
+	mux.Handle("/image_info/", infoHandler)
+	mux.Handle("/folder_browser", browserHandler)
+
+	mux.HandleFunc("/batch_delete", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+		batchHandler.BatchDelete(w, r)
+	})
+	mux.HandleFunc("/batch_move", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+		batchHandler.BatchMove(w, r)
+	})
+	mux.HandleFunc("/batch_rename", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+		batchHandler.BatchRename(w, r)
+	})
+	mux.HandleFunc("/export_zip", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+		batchHandler.ExportZip(w, r)
+	})
+	mux.HandleFunc("/export_folder_zip/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+		batchHandler.ExportFolderZip(w, r)
+	})
+
+	mux.Handle("/find_duplicates/", dupesHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
