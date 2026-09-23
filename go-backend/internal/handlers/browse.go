@@ -22,7 +22,6 @@ func NewBrowseHandler(baseDir string) *BrowseHandler {
 	return &BrowseHandler{BaseDir: baseDir}
 }
 
-// internal file record for sorting/filtering
 type fileRecord struct {
 	Name       string
 	RelPath    string
@@ -37,6 +36,12 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rawPath := strings.TrimPrefix(r.URL.Path, "/browse")
 	rawPath = strings.TrimPrefix(rawPath, "/")
 
+	// Virtual Favorites folder
+	if rawPath == "favorites" {
+		h.serveFavorites(w, r)
+		return
+	}
+
 	folder, err := security.ValidatePath(rawPath)
 	if err != nil {
 		http.Error(w, "Invalid path: "+err.Error(), 400)
@@ -50,12 +55,11 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := os.MkdirAll(fullPath, 0755); err != nil {
-		log.Printf("MkdirAll failed for %s: %v", fullPath, err)
-		http.Error(w, "Cannot create folder: "+err.Error(), 500)
+		log.Printf("MkdirAll failed: %v", err)
+		http.Error(w, "Cannot create folder", 500)
 		return
 	}
 
-	// Parse query params
 	sortBy := r.URL.Query().Get("sort_by")
 	if sortBy == "" {
 		sortBy = "newest"
@@ -65,22 +69,7 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		filterType = "all"
 	}
 
-	// Read folder metadata (contains saved sort)
 	folderMeta := meta.GetMeta(fullPath)
-
-	// If no explicit sort_by in URL, use folder's saved sort
-	if r.URL.Query().Get("sort_by") == "" && folderMeta.Sort != "" {
-		switch folderMeta.Sort {
-		case "Newest":
-			sortBy = "newest"
-		case "Oldest":
-			sortBy = "oldest"
-		case "A-Z":
-			sortBy = "name"
-		}
-	}
-
-	// Read favorites
 	favorites := meta.LoadFavorites(h.BaseDir)
 	favSet := make(map[string]bool, len(favorites))
 	for _, f := range favorites {
@@ -89,13 +78,21 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := os.ReadDir(fullPath)
 	if err != nil {
-		log.Printf("ReadDir failed for %s: %v", fullPath, err)
 		http.Error(w, "Cannot read folder", 500)
 		return
 	}
 
 	folders := []ui.FolderItem{}
 	media := []fileRecord{}
+
+	// Add Favorites virtual folder at root
+	if folder == "" {
+		folders = append(folders, ui.FolderItem{
+			Name:     "⭐ Favorites",
+			URL:      "/browse/favorites",
+			Previews: []string{},
+		})
+	}
 
 	for _, entry := range entries {
 		name := entry.Name()
@@ -106,15 +103,44 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		fullEntryPath := filepath.Join(fullPath, name)
+
 		if entry.IsDir() {
 			rel := name
 			if folder != "" {
 				rel = folder + "/" + name
 			}
+
+			// Build previews (first 4 images inside)
+			previews := []string{}
+			subEntries, err := os.ReadDir(fullEntryPath)
+			if err == nil {
+				for _, se := range subEntries {
+					if len(previews) >= 4 {
+						break
+					}
+					sn := se.Name()
+					if strings.HasPrefix(sn, ".") {
+						continue
+					}
+					if se.IsDir() {
+						continue
+					}
+					if !security.AllowedFile(sn) {
+						continue
+					}
+					if security.IsVideoFile(sn) {
+						continue
+					}
+					previewRel := rel + "/" + sn
+					previews = append(previews, url.QueryEscape(previewRel))
+				}
+			}
+
 			folders = append(folders, ui.FolderItem{
 				Name:     name,
 				URL:      "/browse/" + url.QueryEscape(rel),
-				Previews: []string{},
+				Previews: previews,
 			})
 			continue
 		}
@@ -124,13 +150,11 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		info, err := entry.Info()
-		var size int64
-		var modTime int64
-		var createTime int64
+		var size, modTime, ctime int64
 		if err == nil {
 			size = info.Size()
 			modTime = info.ModTime().Unix()
-			createTime = info.ModTime().Unix() // Go doesn't expose ctime portably
+			ctime = info.ModTime().Unix()
 		}
 
 		rel := name
@@ -144,12 +168,12 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			IsVideo:    security.IsVideoFile(name),
 			Size:       size,
 			ModTime:    modTime,
-			CreateTime: createTime,
+			CreateTime: ctime,
 			IsFavorite: favSet[rel],
 		})
 	}
 
-	// Apply filter
+	// Filter
 	switch filterType {
 	case "images":
 		filtered := media[:0]
@@ -177,19 +201,18 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		media = filtered
 	}
 
-	// Apply sort to folders
-	switch sortBy {
-	case "name":
-		sort.Slice(folders, func(i, j int) bool {
-			return strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
-		})
-	default:
-		sort.Slice(folders, func(i, j int) bool {
-			return strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
-		})
-	}
+	// Sort folders (A-Z, but keep Favorites at top)
+	sort.SliceStable(folders, func(i, j int) bool {
+		if strings.HasPrefix(folders[i].Name, "⭐") {
+			return true
+		}
+		if strings.HasPrefix(folders[j].Name, "⭐") {
+			return false
+		}
+		return strings.ToLower(folders[i].Name) < strings.ToLower(folders[j].Name)
+	})
 
-	// Apply sort to media
+	// Sort media
 	switch sortBy {
 	case "name":
 		sort.Slice(media, func(i, j int) bool {
@@ -203,13 +226,12 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sort.Slice(media, func(i, j int) bool {
 			return media[i].CreateTime < media[j].CreateTime
 		})
-	default: // newest
+	default:
 		sort.Slice(media, func(i, j int) bool {
 			return media[i].CreateTime > media[j].CreateTime
 		})
 	}
 
-	// Convert to UI media items
 	uiMedia := make([]ui.MediaItem, 0, len(media))
 	for _, m := range media {
 		mediaType := "image"
@@ -241,6 +263,57 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		SortBy:      sortBy,
 		FilterType:  filterType,
 		Breadcrumbs: toUIBreadcrumbs(meta.GetBreadcrumbs(folder)),
+	}
+
+	html, err := ui.Render(data)
+	if err != nil {
+		log.Printf("Template render error: %v", err)
+		http.Error(w, "Template error: "+err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(html))
+}
+
+// serveFavorites renders the virtual Favorites folder.
+func (h *BrowseHandler) serveFavorites(w http.ResponseWriter, r *http.Request) {
+	favorites := meta.CleanupFavorites(h.BaseDir)
+	media := []ui.MediaItem{}
+
+	for _, rel := range favorites {
+		full := filepath.Join(h.BaseDir, filepath.FromSlash(rel))
+		info, err := os.Stat(full)
+		if err != nil {
+			continue
+		}
+		name := info.Name()
+		isVid := security.IsVideoFile(name)
+		mediaType := "image"
+		if isVid {
+			mediaType = "video"
+		}
+		media = append(media, ui.MediaItem{
+			Name:       name,
+			RelPath:    url.QueryEscape(rel),
+			IsVideo:    isVid,
+			Type:       mediaType,
+			Size:       info.Size(),
+			IsFavorite: true,
+		})
+	}
+
+	data := ui.TemplateData{
+		Folder:      "favorites",
+		Items:       []ui.FolderItem{},
+		Images:      media,
+		Meta:        ui.FolderMeta{Sort: "Newest"},
+		Recents:     []ui.Recent{},
+		Page:        1,
+		TotalPages:  1,
+		LogoURL:     "",
+		SortBy:      "newest",
+		FilterType:  "all",
+		Breadcrumbs: toUIBreadcrumbs(meta.GetBreadcrumbs("favorites")),
 	}
 
 	html, err := ui.Render(data)
