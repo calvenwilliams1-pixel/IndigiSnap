@@ -189,6 +189,91 @@ func (h *ActionHandler) ToggleFavorite(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Upload handles POST /upload — accepts multipart form data with
+// one or more files and a "folder" field indicating the destination.
+func (h *ActionHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(50 << 20); err != nil {
+		http.Error(w, "Cannot parse upload: "+err.Error(), 400)
+		return
+	}
+
+	folder := r.FormValue("folder")
+	folder, _ = security.ValidatePath(folder)
+
+	destDir := h.BaseDir
+	if folder != "" {
+		destDir = filepath.Join(h.BaseDir, security.ToOSPath(folder))
+	}
+	if !security.IsSafePath(h.BaseDir, destDir) {
+		http.Error(w, "Access denied", 403)
+		return
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		http.Error(w, "Cannot create destination: "+err.Error(), 500)
+		return
+	}
+
+	files := r.MultipartForm.File["photo"]
+	if len(files) == 0 {
+		files = r.MultipartForm.File["file"]
+	}
+	if len(files) == 0 {
+		http.Error(w, "No files uploaded", 400)
+		return
+	}
+
+	prefix := meta.GenerateSearchablePrefix(folder)
+	now := time.Now().Format("20060102_150405")
+
+	for i, fh := range files {
+		name := security.SanitizeFilename(fh.Filename)
+		if name == "untitled" || name == "" {
+			// no usable filename — generate one
+			ext := filepath.Ext(fh.Filename)
+			if ext == "" {
+				ext = ".jpg"
+			}
+			name = fmt.Sprintf("upload_%s_%d%s", now, i+1, ext)
+		}
+		if !security.AllowedFile(name) {
+			continue
+		}
+
+		// Unique-ify: prepend prefix + timestamp
+		ext := filepath.Ext(name)
+		base := strings.TrimSuffix(name, ext)
+		finalName := fmt.Sprintf("%s%s_%s%s", prefix, now, base, ext)
+
+		dst := filepath.Join(destDir, finalName)
+		if !security.IsSafePath(h.BaseDir, dst) {
+			continue
+		}
+
+		src, err := fh.Open()
+		if err != nil {
+			continue
+		}
+		out, err := os.Create(dst)
+		if err != nil {
+			src.Close()
+			continue
+		}
+		io.Copy(out, src)
+		out.Close()
+		src.Close()
+
+		if security.IsVideoFile(finalName) {
+			video.GenerateThumbnailBackground(dst)
+		}
+	}
+
+	back := "/browse"
+	if folder != "" {
+		back = "/browse/" + url.QueryEscape(folder)
+	}
+	http.Redirect(w, r, back, http.StatusSeeOther)
+}
+
 // SetSort handles POST /set_sort/<folder>
 func (h *ActionHandler) SetSort(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimPrefix(r.URL.Path, "/set_sort/")
