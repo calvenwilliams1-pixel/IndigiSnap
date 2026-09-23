@@ -3,6 +3,14 @@ package main
 /*
 #include <stdlib.h>
 #include <jni.h>
+
+static char* indigisnap_jstring_to_c(JNIEnv* env, jstring s) {
+    return (char*)(*env)->GetStringUTFChars(env, s, NULL);
+}
+
+static void indigisnap_release_jstring(JNIEnv* env, jstring s, char* c) {
+    (*env)->ReleaseStringUTFChars(env, s, c);
+}
 */
 import "C"
 
@@ -20,9 +28,9 @@ var (
 
 //export Java_com_indigisnap_app_ServerBridge_StartServer
 func Java_com_indigisnap_app_ServerBridge_StartServer(env *C.JNIEnv, clazz C.jclass, port C.jint, baseDir C.jstring) {
-	baseC := C.GetStringUTFChars(env, baseDir, nil)
+	baseC := C.indigisnap_jstring_to_c(env, baseDir)
 	base := C.GoString(baseC)
-	C.ReleaseStringUTFChars(env, baseDir, baseC)
+	C.indigisnap_release_jstring(env, baseDir, baseC)
 
 	startServer(int(port), base)
 }
