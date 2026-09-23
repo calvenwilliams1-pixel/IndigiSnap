@@ -503,8 +503,12 @@ h3 {
 
 <button onclick="document.getElementById('modal').style.display='block'" class="fab" style="position:fixed; bottom:40px; left:50px; padding:0; border-radius:50%; border:5px solid rgba(255,255,255,0.8); background:var(--psy-grad-trans); font-size:32px; cursor:pointer; z-index:1000; box-shadow:0 0 35px rgba(255,0,255,0.5); width:64px; height:64px; line-height:1; display:flex; align-items:center; justify-content:center;">＋</button>
 
-<script>
-let selectMode = false;
+<button onclick="document.getElementById('photoInput').click()" class="fab" style="position:fixed; bottom:40px; right:50px; padding:0; border-radius:50%; border:5px solid rgba(255,255,255,0.8); background:var(--psy-grad-trans); font-size:32px; cursor:pointer; z-index:1000; box-shadow:0 0 35px rgba(0,255,153,0.5); width:64px; height:64px; line-height:1; display:flex; align-items:center; justify-content:center;">📷</button>
+
+<form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data" style="display:none;">
+  <input type="hidden" name="folder" value="{{ .Folder }}">
+  <input type="file" name="photo" id="photoInput" accept="image/*,video/*" capture="environment" onchange="document.getElementById('uploadForm').submit()">
+</form>
 let selected = [];
 let currentImagePath = "";
 let currentActionFolder = "{{ .Folder }}";
