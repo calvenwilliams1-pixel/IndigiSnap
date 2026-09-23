@@ -2,7 +2,10 @@ package com.indigisnap.app
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
@@ -14,35 +17,15 @@ import kotlin.concurrent.thread
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
-    private var pendingFileCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 1001 && pendingFileCallback != null) {
-            val results = android.webkit.WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-            pendingFileCallback?.onReceiveValue(results)
-            pendingFileCallback = null
-        }
-    }
-    private var pendingFileCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 1001) {
-            if (pendingFileCallback != null) {
-                val results = android.webkit.WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-                pendingFileCallback?.onReceiveValue(results)
-                pendingFileCallback = null
-            }
-        }
-    }
+    private var pendingFileCallback: ValueCallback<Array<Uri>>? = null
+    private val fileChooserRequestCode = 1001
 
     @SuppressLint("SetJavaScriptEnabled")
-        override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         android.util.Log.e("IndigiSnapDebug", "MainActivity onCreate START")
 
-        // Request camera + media permissions at runtime
+        // Request runtime permissions
         if (android.os.Build.VERSION.SDK_INT >= 23) {
             val perms = mutableListOf<String>()
             perms.add(android.Manifest.permission.CAMERA)
@@ -65,50 +48,32 @@ class MainActivity : AppCompatActivity() {
         webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.webViewClient = WebViewClient()
 
-        webView.webChromeClient = object : android.webkit.WebChromeClient() {
+        webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
                 wv: WebView?,
-                callback: android.webkit.ValueCallback<Array<android.net.Uri>>?,
-                params: android.webkit.WebChromeClient.FileChooserParams?
+                callback: ValueCallback<Array<Uri>>?,
+                params: FileChooserParams?
             ): Boolean {
                 pendingFileCallback?.onReceiveValue(null)
                 pendingFileCallback = callback
                 return try {
                     val intent = params?.createIntent()
-                    startActivityForResult(intent, 1001)
+                    if (intent == null) {
+                        pendingFileCallback = null
+                        return false
+                    }
+                    startActivityForResult(intent, fileChooserRequestCode)
                     true
                 } catch (e: Exception) {
+                    android.util.Log.e("IndigiSnapDebug", "File chooser failed", e)
                     pendingFileCallback = null
                     false
                 }
             }
         }
 
-        // Wire up file chooser so <input type="file" capture> opens the camera
-        webView.webChromeClient = object : android.webkit.WebChromeClient() {
-            private var filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
-            private val fileChooserRequestCode = 1001
-
-            override fun onShowFileChooser(
-                wv: WebView?,
-                callback: android.webkit.ValueCallback<Array<android.net.Uri>>?,
-                params: android.webkit.WebChromeClient.FileChooserParams?
-            ): Boolean {
-                filePathCallback?.onReceiveValue(null)
-                filePathCallback = callback
-                return try {
-                    val intent = params?.createIntent()
-                    startActivityForResult(intent, fileChooserRequestCode)
-                    true
-                } catch (e: Exception) {
-                    filePathCallback = null
-                    false
-                }
-            }
-        }
         setContentView(webView)
 
-        // Start the foreground service that runs the Go server
         android.util.Log.e("IndigiSnapDebug", "About to start ServerService")
         try {
             val serviceIntent = Intent(this, ServerService::class.java)
@@ -117,7 +82,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Throwable) {
             android.util.Log.e("IndigiSnapDebug", "ServerService start FAILED", e)
         }
-        // Show a brief loading screen while the server boots
+
         webView.loadData(
             """
             <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -131,8 +96,16 @@ class MainActivity : AppCompatActivity() {
             "UTF-8"
         )
 
-        // Poll the server until it responds, then load the real UI
         waitForServerAndLoad()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == fileChooserRequestCode && pendingFileCallback != null) {
+            val results = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            pendingFileCallback?.onReceiveValue(results)
+            pendingFileCallback = null
+        }
     }
 
     private fun waitForServerAndLoad() {
