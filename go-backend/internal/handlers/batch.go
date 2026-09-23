@@ -142,7 +142,7 @@ func (h *BatchHandler) BatchRename(w http.ResponseWriter, r *http.Request) {
 		}
 		ext := filepath.Ext(name)
 		origBase := strings.TrimSuffix(name, ext)
-		newName := strings.ReplaceAll(pattern, "{n}", itoa(i+1))
+		newName := strings.ReplaceAll(pattern, "{n}", strconv.Itoa(i+1))
 		newName = strings.ReplaceAll(newName, "{name}", origBase)
 		if ext != "" && !strings.HasSuffix(newName, ext) {
 			newName += ext
