@@ -94,6 +94,13 @@ func buildMux(baseDir string) *http.ServeMux {
 		}
 		actionHandler.SetSort(w, r)
 	})
+	mux.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+		actionHandler.Upload(w, r)
+	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
