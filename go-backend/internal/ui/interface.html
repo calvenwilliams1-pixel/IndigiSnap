@@ -23,326 +23,68 @@ body {
   margin: 0;
   overflow-x: hidden;
 }
-.brand-header {
-  text-align: center;
-  margin-top: 10px;
-  margin-bottom: 25px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-}
-.brand-logo {
-  max-width: 120px;
-  max-height: 120px;
-  border-radius: 20px;
-  border: 3px solid var(--neon);
-  box-shadow: 0 0 30px rgba(255, 0, 255, 0.5);
-  object-fit: contain;
-}
-.brand-logo-placeholder {
-  font-size: 60px;
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-.brand-title {
-  font-family: 'Orbitron', 'Courier New', monospace;
-  font-size: 52px;
-  font-weight: 900;
-  letter-spacing: 4px;
-  color: #ffffff;
-  text-transform: uppercase;
-  margin: 0;
-  padding: 10px 0;
-  text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px var(--neon), 0 0 40px var(--neon), 0 0 60px var(--neon);
-  animation: flicker 3s infinite alternate;
-}
-@keyframes flicker {
-  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
-    text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px var(--neon), 0 0 40px var(--neon);
-  }
-  20%, 24%, 55% {
-    text-shadow: none;
-    color: #331133;
-  }
-}
-.brand-subtitle {
-  color: var(--psy);
-  font-size: 18px;
-  opacity: 0.8;
-  letter-spacing: 2px;
-}
-.breadcrumbs {
-  font-size: 36px;
-  margin-bottom: 30px;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-.breadcrumbs a {
-  color: #ffffff;
-  text-decoration: none;
-  padding: 15px 30px;
-  border: var(--glow-border);
-  border-radius: 20px;
-  background: #110822;
-  box-shadow: 0 0 15px rgba(255, 0, 255, 0.4);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.controls-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 20px 0;
-  align-items: center;
-}
-.controls-bar select {
-  padding: 10px 15px;
-  background: #120c1f;
-  border: 2px solid var(--psy);
-  color: #ffffff;
-  border-radius: 15px;
-  font-size: 16px;
-  font-weight: bold;
-}
-.pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 12px 25px;
-  border: 3px solid var(--psy);
-  border-radius: 25px;
-  text-decoration: none;
-  color: white;
-  background: #110822;
-  margin-right: 5px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  box-shadow: 0 0 15px rgba(0, 255, 153, 0.3);
-}
-.pill:hover {
-  box-shadow: 0 0 25px rgba(0, 255, 153, 0.5);
-}
-.pill.active {
-  background: linear-gradient(135deg, #ff00ff, #00ff99, #00ffff);
-  color: black;
-  border-color: #ffffff;
-}
-h3 {
-  font-size: 28px;
-  color: var(--psy);
-  margin: 40px 0 20px 0;
-  text-shadow: 0 0 10px rgba(0, 255, 153, 0.5);
-  border-bottom: 2px dashed var(--neon);
-  padding-bottom: 10px;
-}
-.grid, .image-grid {
-  display: grid;
-  gap: 20px;
-  padding: 10px 0px 180px 0px;
-  width: 100%;
-}
-.grid {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-}
-.image-grid {
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-}
-.tile {
-  border: var(--glow-border);
-  border-radius: 25px;
-  padding: 15px;
-  text-align: center;
-  cursor: pointer;
-  aspect-ratio: 1/1;
-  background: rgba(18, 8, 34, 0.8);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  position: relative;
-  box-shadow: 0 0 15px rgba(255, 0, 255, 0.1);
-  width: 100%;
-}
-.image-tile, .video-tile {
-  border: var(--img-border);
-  border-radius: 20px;
-  overflow: hidden;
-  aspect-ratio: 1/1;
-  cursor: pointer;
-  position: relative;
-  background: #110822;
-  box-shadow: 0 0 15px rgba(0, 255, 153, 0.2);
-  width: 100%;
-}
-.image-tile img, .video-tile img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.video-tile .video-name {
-  position: absolute;
-  bottom: 8px;
-  left: 0;
-  right: 0;
-  background: rgba(0,0,0,0.6);
-  padding: 4px 8px;
-  font-size: 12px;
-  color: #fff;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  z-index: 5;
-}
-.preview-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  width: 90px;
-  height: 90px;
-  margin: 0 auto 10px;
-  background: #1a1525;
-  overflow: hidden;
-  border-radius: 10px;
-  border: 2px solid var(--psy);
-  pointer-events: none;
-}
+.brand-header { text-align: center; margin-top: 10px; margin-bottom: 25px; display: flex; flex-direction: column; align-items: center; gap: 15px; }
+.brand-logo { max-width: 120px; max-height: 120px; border-radius: 20px; border: 3px solid var(--neon); box-shadow: 0 0 30px rgba(255, 0, 255, 0.5); object-fit: contain; }
+.brand-logo-placeholder { font-size: 60px; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+.brand-title { font-family: 'Orbitron', 'Courier New', monospace; font-size: 52px; font-weight: 900; letter-spacing: 4px; color: #ffffff; text-transform: uppercase; margin: 0; padding: 10px 0; text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px var(--neon), 0 0 40px var(--neon), 0 0 60px var(--neon); animation: flicker 3s infinite alternate; }
+@keyframes flicker { 0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px var(--neon), 0 0 40px var(--neon); } 20%, 24%, 55% { text-shadow: none; color: #331133; } }
+.brand-subtitle { color: var(--psy); font-size: 18px; opacity: 0.8; letter-spacing: 2px; }
+.breadcrumbs { font-size: 36px; margin-bottom: 30px; display: flex; align-items: center; flex-wrap: wrap; gap: 15px; }
+.breadcrumbs a { color: #ffffff; text-decoration: none; padding: 15px 30px; border: var(--glow-border); border-radius: 20px; background: #110822; box-shadow: 0 0 15px rgba(255, 0, 255, 0.4); display: inline-flex; align-items: center; justify-content: center; }
+.controls-bar { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; align-items: center; }
+.controls-bar select { padding: 10px 15px; background: #120c1f; border: 2px solid var(--psy); color: #ffffff; border-radius: 15px; font-size: 16px; font-weight: bold; }
+.pill { display: inline-flex; align-items: center; padding: 12px 25px; border: 3px solid var(--psy); border-radius: 25px; text-decoration: none; color: white; background: #110822; margin-right: 5px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 0 15px rgba(0, 255, 153, 0.3); }
+.pill.active { background: linear-gradient(135deg, #ff00ff, #00ff99, #00ffff); color: black; border-color: #ffffff; }
+h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0 10px rgba(0, 255, 153, 0.5); border-bottom: 2px dashed var(--neon); padding-bottom: 10px; }
+.grid, .image-grid { display: grid; gap: 20px; padding: 10px 0px 180px 0px; width: 100%; }
+.grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.image-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.tile { border: var(--glow-border); border-radius: 25px; padding: 15px; text-align: center; cursor: pointer; aspect-ratio: 1/1; background: rgba(18, 8, 34, 0.8); display: flex; flex-direction: column; justify-content: space-between; position: relative; box-shadow: 0 0 15px rgba(255, 0, 255, 0.1); width: 100%; }
+.image-tile, .video-tile { border: var(--img-border); border-radius: 20px; overflow: hidden; aspect-ratio: 1/1; cursor: pointer; position: relative; background: #110822; box-shadow: 0 0 15px rgba(0, 255, 153, 0.2); width: 100%; }
+.image-tile img, .video-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.video-tile .video-name { position: absolute; bottom: 8px; left: 0; right: 0; background: rgba(0,0,0,0.6); padding: 4px 8px; font-size: 12px; color: #fff; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; z-index: 5; }
+.preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: 90px; height: 90px; margin: 0 auto 10px; background: #1a1525; overflow: hidden; border-radius: 10px; border: 2px solid var(--psy); pointer-events: none; }
 .preview-grid.single { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 .preview-grid.two { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
 .preview-grid img { width: 100%; height: 100%; object-fit: cover; }
-.preview-placeholder {
-  font-size: 50px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-}
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: #888;
-}
-.empty-state .icon {
-  font-size: 80px;
-  margin-bottom: 20px;
-  display: block;
-}
-.empty-state h3 {
-  color: var(--psy);
-  font-size: 28px;
-  border: none;
-  margin-bottom: 10px;
-}
-
-.tile-action-btn {
-  position: absolute;
-  background: rgba(7, 4, 13, 0.7);
-  border: 2px solid var(--neon);
-  border-radius: 50%;
-  color: white;
-  width: 32px;
-  height: 32px;
-  cursor: pointer;
-  z-index: 15;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-}
+.preview-placeholder { font-size: 50px; display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; }
+.empty-state { text-align: center; padding: 60px 20px; color: #888; }
+.empty-state .icon { font-size: 80px; margin-bottom: 20px; display: block; }
+.empty-state h3 { color: var(--psy); font-size: 28px; border: none; margin-bottom: 10px; }
+.tile-action-btn { position: absolute; background: rgba(7, 4, 13, 0.7); border: 2px solid var(--neon); border-radius: 50%; color: white; width: 32px; height: 32px; cursor: pointer; z-index: 15; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 .tile-action-btn.favorite-btn { top: 10px; left: 10px; font-size: 18px; }
 .tile-action-btn.favorite-btn.favorited { color: #ffd700; border-color: #ffd700; text-shadow: 0 0 15px #ffd700; }
 .tile-action-btn.share-btn { bottom: 10px; left: 10px; font-size: 16px; }
-.tile-delete-btn {
-  position: absolute;
-  top: 10px; right: 10px;
-  background: rgba(7, 4, 13, 0.7);
-  border: 2px solid var(--neon);
-  border-radius: 50%;
-  color: white;
-  font-size: 20px;
-  width: 32px; height: 32px;
-  cursor: pointer;
-  z-index: 15;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.tile-delete-btn:hover { background: rgba(255, 0, 0, 0.5); }
-.select-box {
-  position: absolute;
-  top: 4px; left: 4px;
-  width: 18px; height: 18px;
-  z-index: 10;
-  pointer-events: none;
-  accent-color: var(--psy);
-  opacity: 0.9;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 3px;
-  border: 2px solid var(--psy);
-  margin: 0; padding: 0;
-}
-.tile.selected, .image-tile.selected, .video-tile.selected {
-  border-color: var(--psy);
-  box-shadow: 0 0 25px var(--psy);
-  background: rgba(0, 255, 153, 0.1);
-}
-.tile.hidden, .image-tile.hidden, .video-tile.hidden { display: none !important; }
-#batchBar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  background: rgba(18, 8, 34, 0.95);
-  padding: 12px 20px;
-  border-bottom: 4px solid var(--psy);
-  z-index: 10000;
-  box-shadow: 0 0 35px var(--psy);
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-}
-.recents-container {
-  display: flex;
-  gap: 15px;
-  overflow-x: auto;
-  padding: 10px 5px;
-  margin-bottom: 20px;
-  white-space: nowrap;
-}
-.recent-pill {
-  background: rgba(255, 0, 255, 0.1);
-  border: 2px solid var(--neon);
-  color: #fff;
-  padding: 10px 20px;
-  border-radius: 15px;
-  text-decoration: none;
-  font-size: 16px;
-  font-weight: bold;
-  display: inline-block;
-}
+.tile-delete-btn { position: absolute; top: 10px; right: 10px; background: rgba(7, 4, 13, 0.7); border: 2px solid var(--neon); border-radius: 50%; color: white; font-size: 20px; width: 32px; height: 32px; cursor: pointer; z-index: 15; display: flex; align-items: center; justify-content: center; }
+.select-box { position: absolute; top: 4px; left: 4px; width: 18px; height: 18px; z-index: 10; pointer-events: none; accent-color: var(--psy); opacity: 0.9; background: rgba(0, 0, 0, 0.4); border-radius: 3px; border: 2px solid var(--psy); margin: 0; padding: 0; }
+.tile.selected, .image-tile.selected, .video-tile.selected { border-color: var(--psy); box-shadow: 0 0 25px var(--psy); background: rgba(0, 255, 153, 0.1); }
+#batchBar { position: fixed; top: 0; left: 0; width: 100%; background: rgba(18, 8, 34, 0.95); padding: 12px 20px; border-bottom: 4px solid var(--psy); z-index: 10000; box-shadow: 0 0 35px var(--psy); flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+.recents-container { display: flex; gap: 15px; overflow-x: auto; padding: 10px 5px; margin-bottom: 20px; white-space: nowrap; }
+.recent-pill { background: rgba(255, 0, 255, 0.1); border: 2px solid var(--neon); color: #fff; padding: 10px 20px; border-radius: 15px; text-decoration: none; font-size: 16px; font-weight: bold; display: inline-block; }
+.grid-size-small .grid, .grid-size-small .image-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important; gap: 12px !important; }
+.grid-size-medium .grid, .grid-size-medium .image-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; gap: 18px !important; }
+.grid-size-large .grid, .grid-size-large .image-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important; gap: 24px !important; }
+.view-list .grid, .view-list .image-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
+.view-list .image-tile, .view-list .video-tile, .view-list .tile { aspect-ratio: auto !important; min-height: 60px; flex-direction: row; align-items: center; gap: 15px; border-radius: 12px; }
+.view-list .image-tile img, .view-list .video-tile img { width: 50px; height: 50px; border-radius: 8px; flex-shrink: 0; object-fit: cover; }
+.view-list .image-tile .video-name, .view-list .video-tile .video-name { position: static; background: none; padding: 0; font-size: 16px; color: #fff; flex: 1; text-align: left; }
+.view-toggle button { padding: 8px 14px; border: 2px solid var(--psy); border-radius: 12px; background: #110822; color: white; cursor: pointer; font-size: 18px; }
+.view-toggle button.active { background: var(--psy); color: black; }
+.grid-size-options button { padding: 6px 12px; border: 2px solid var(--psy); border-radius: 10px; background: #110822; color: white; cursor: pointer; font-size: 14px; }
+.grid-size-options button.active { background: var(--psy); color: black; }
+.fab { position: fixed; padding: 0; border-radius: 50%; border: 5px solid rgba(255,255,255,0.8); background: var(--psy-grad-trans); cursor: pointer; z-index: 1000; box-shadow: 0 0 35px rgba(255,0,255,0.5); width: 64px; height: 64px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 @media (max-width: 480px) {
   body { padding: 15px; }
   .brand-title { font-size: 32px; }
   .breadcrumbs { font-size: 24px; }
   .breadcrumbs a { padding: 10px 20px; font-size: 20px; }
   .pill { padding: 10px 18px; font-size: 14px; }
-  .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
-  .image-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
 }
 </style>
 </head>
 <body>
-
-<div class="brand-header">
+  <div class="brand-header">
   {{ if .LogoURL }}
   <img src="{{ .LogoURL }}" alt="App Logo" class="brand-logo">
   {{ else }}
@@ -357,15 +99,6 @@ h3 {
   <a href="{{ .Path }}">{{ .Label }}</a>
   {{ end }}
 </div>
-
-{{ if .Recents }}
-<div class="recents-container">
-  <span style="color: var(--psy); align-self: center; font-weight: bold; margin-right: 5px;">Recent:</span>
-  {{ range .Recents }}
-  <a href="/browse/{{ .Path }}" class="recent-pill">📁 {{ .Name }}</a>
-  {{ end }}
-</div>
-{{ end }}
 
 <div class="controls-bar">
   <button onclick="toggleSelectMode()" class="pill">Select Mode</button>
@@ -400,6 +133,15 @@ h3 {
       <option value="favorites"{{ if eq .FilterType "favorites" }} selected{{ end }}>⭐ Favorites</option>
     </select>
   </form>
+  <div class="view-toggle">
+    <button id="viewGridBtn" onclick="setView('grid')" class="active">▦</button>
+    <button id="viewListBtn" onclick="setView('list')">☰</button>
+  </div>
+  <div class="grid-size-options">
+    <button class="grid-size-btn" data-size="small" onclick="setGridSize('small')">S</button>
+    <button class="grid-size-btn active" data-size="medium" onclick="setGridSize('medium')">M</button>
+    <button class="grid-size-btn" data-size="large" onclick="setGridSize('large')">L</button>
+  </div>
 </div>
 
 <div id="batchBar" style="display:none;">
@@ -501,14 +243,48 @@ h3 {
   </div>
 </div>
 
-<button onclick="document.getElementById('modal').style.display='block'" class="fab" style="position:fixed; bottom:40px; left:50px; padding:0; border-radius:50%; border:5px solid rgba(255,255,255,0.8); background:var(--psy-grad-trans); font-size:32px; cursor:pointer; z-index:1000; box-shadow:0 0 35px rgba(255,0,255,0.5); width:64px; height:64px; line-height:1; display:flex; align-items:center; justify-content:center;">＋</button>
+<button onclick="document.getElementById('modal').style.display='block'" class="fab" style="bottom:40px; left:50px; font-size:32px;">＋</button>
 
-<button onclick="document.getElementById('photoInput').click()" class="fab" style="position:fixed; bottom:40px; right:50px; padding:0; border-radius:50%; border:5px solid rgba(255,255,255,0.8); background:var(--psy-grad-trans); font-size:32px; cursor:pointer; z-index:1000; box-shadow:0 0 35px rgba(0,255,153,0.5); width:64px; height:64px; line-height:1; display:flex; align-items:center; justify-content:center;">📷</button>
+<button onclick="document.getElementById('photoInput').click()" class="fab" style="bottom:40px; right:120px; font-size:28px; box-shadow: 0 0 35px rgba(0,255,153,0.5);">📷</button>
+
+<button onclick="document.getElementById('videoInput').click()" class="fab" style="bottom:40px; right:50px; font-size:28px; box-shadow: 0 0 35px rgba(255,0,153,0.5);">🎬</button>
 
 <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data" style="display:none;">
   <input type="hidden" name="folder" value="{{ .Folder }}">
-  <input type="file" name="photo" id="photoInput" accept="image/*,video/*" capture="environment" onchange="document.getElementById('uploadForm').submit()">
+  <input type="file" name="photo" id="photoInput" accept="image/*" capture="environment" onchange="document.getElementById('uploadForm').submit()">
+  <input type="file" name="photo" id="videoInput" accept="video/*" capture="environment" onchange="document.getElementById('uploadForm').submit()">
 </form>
+
+  <script>
+function setGridSize(size) {
+  document.body.className = document.body.className.replace(/grid-size-\w+/g, '');
+  document.body.classList.add('grid-size-' + size);
+  localStorage.setItem('indigisnap_grid_size', size);
+  document.querySelectorAll('.grid-size-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector('.grid-size-btn[data-size="' + size + '"]');
+  if (btn) btn.classList.add('active');
+}
+
+function setView(view) {
+  document.body.classList.remove('view-list');
+  if (view === 'list') {
+    document.body.classList.add('view-list');
+  }
+  localStorage.setItem('indigisnap_view', view);
+  const gb = document.getElementById('viewGridBtn');
+  const lb = document.getElementById('viewListBtn');
+  if (gb) gb.classList.toggle('active', view === 'grid');
+  if (lb) lb.classList.toggle('active', view === 'list');
+}
+
+(function() {
+  const savedGrid = localStorage.getItem('indigisnap_grid_size') || 'medium';
+  setGridSize(savedGrid);
+  const savedView = localStorage.getItem('indigisnap_view') || 'grid';
+  setView(savedView);
+})();
+
+let selectMode = false;
 let selected = [];
 let currentImagePath = "";
 let currentActionFolder = "{{ .Folder }}";
@@ -653,12 +429,13 @@ function exportFolder(targetFolder) {
   form.action = '/export_folder_zip/' + targetFolder;
   document.body.appendChild(form);
   form.submit();
+  document.body.removeChild(form);
 }
 
 function findDuplicates(targetFolder) {
   fetch('/find_duplicates/' + targetFolder).then(res => res.json()).then(data => {
     alert('🔍 Discovered ' + data.duplicates.length + ' groups.');
-  });
+  }).catch(() => alert('Error finding duplicates'));
 }
 
 function batchDelete() {
@@ -671,21 +448,59 @@ function batchDelete() {
   }
 }
 
-function batchExport() { alert('Export not yet ported to Go backend'); }
-function batchMove() { alert('Move not yet ported to Go backend'); }
-function batchRename() { alert('Rename not yet ported to Go backend'); }
+function batchExport() {
+  if (!selected.length) return;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/export_zip';
+  const f1 = document.createElement('input');
+  f1.type = 'hidden';
+  f1.name = 'folders';
+  f1.value = JSON.stringify(selected);
+  const f2 = document.createElement('input');
+  f2.type = 'hidden';
+  f2.name = 'folder';
+  f2.value = currentActionFolder;
+  form.appendChild(f1);
+  form.appendChild(f2);
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+}
+
+function batchMove() {
+  if (!selected.length) return;
+  const target = prompt('📁 Move to which folder? (leave blank for root)');
+  if (target === null) return;
+  fetch('/batch_move', {
+    method: 'POST',
+    body: new URLSearchParams({ folders: JSON.stringify(selected), folder: currentActionFolder, target: target })
+  }).then(() => location.reload());
+}
+
+function batchRename() {
+  if (!selected.length) return;
+  const pattern = prompt('✏️ Rename pattern. Use {n} for number, {name} for original name:');
+  if (!pattern) return;
+  fetch('/batch_rename', {
+    method: 'POST',
+    body: new URLSearchParams({ folders: JSON.stringify(selected), folder: currentActionFolder, pattern: pattern })
+  }).then(() => location.reload());
+}
 
 let touchStartX = 0, touchEndX = 0;
 document.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, false);
 document.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, false);
 function handleSwipe() {
-  if (document.getElementById('imgViewer').style.display !== 'flex') return;
+  const viewer = document.getElementById('imgViewer');
+  if (!viewer || viewer.style.display !== 'flex') return;
   if (touchEndX < touchStartX - 60) navigateGallery(1);
   if (touchEndX > touchStartX + 60) navigateGallery(-1);
 }
 
 document.addEventListener('keydown', function(e) {
-  if (document.getElementById('imgViewer').style.display === 'flex') {
+  const viewer = document.getElementById('imgViewer');
+  if (viewer && viewer.style.display === 'flex') {
     if (e.key === 'ArrowLeft') navigateGallery(-1);
     if (e.key === 'ArrowRight') navigateGallery(1);
     if (e.key === 'Escape') closeViewer();
