@@ -14,19 +14,98 @@ import kotlin.concurrent.thread
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private var pendingFileCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 1001 && pendingFileCallback != null) {
+            val results = android.webkit.WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            pendingFileCallback?.onReceiveValue(results)
+            pendingFileCallback = null
+        }
+    }
+    private var pendingFileCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 1001) {
+            if (pendingFileCallback != null) {
+                val results = android.webkit.WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+                pendingFileCallback?.onReceiveValue(results)
+                pendingFileCallback = null
+            }
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
-    override fun onCreate(savedInstanceState: Bundle?) {
+        override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         android.util.Log.e("IndigiSnapDebug", "MainActivity onCreate START")
+
+        // Request camera + media permissions at runtime
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            val perms = mutableListOf<String>()
+            perms.add(android.Manifest.permission.CAMERA)
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                perms.add("android.permission.READ_MEDIA_IMAGES")
+                perms.add("android.permission.READ_MEDIA_VIDEO")
+            } else {
+                perms.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                perms.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+            requestPermissions(perms.toTypedArray(), 2001)
+        }
 
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.databaseEnabled = true
         webView.settings.allowFileAccess = true
+        webView.settings.allowContentAccess = true
+        webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.webViewClient = WebViewClient()
 
+        webView.webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onShowFileChooser(
+                wv: WebView?,
+                callback: android.webkit.ValueCallback<Array<android.net.Uri>>?,
+                params: android.webkit.WebChromeClient.FileChooserParams?
+            ): Boolean {
+                pendingFileCallback?.onReceiveValue(null)
+                pendingFileCallback = callback
+                return try {
+                    val intent = params?.createIntent()
+                    startActivityForResult(intent, 1001)
+                    true
+                } catch (e: Exception) {
+                    pendingFileCallback = null
+                    false
+                }
+            }
+        }
+
+        // Wire up file chooser so <input type="file" capture> opens the camera
+        webView.webChromeClient = object : android.webkit.WebChromeClient() {
+            private var filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
+            private val fileChooserRequestCode = 1001
+
+            override fun onShowFileChooser(
+                wv: WebView?,
+                callback: android.webkit.ValueCallback<Array<android.net.Uri>>?,
+                params: android.webkit.WebChromeClient.FileChooserParams?
+            ): Boolean {
+                filePathCallback?.onReceiveValue(null)
+                filePathCallback = callback
+                return try {
+                    val intent = params?.createIntent()
+                    startActivityForResult(intent, fileChooserRequestCode)
+                    true
+                } catch (e: Exception) {
+                    filePathCallback = null
+                    false
+                }
+            }
+        }
         setContentView(webView)
 
         // Start the foreground service that runs the Go server
