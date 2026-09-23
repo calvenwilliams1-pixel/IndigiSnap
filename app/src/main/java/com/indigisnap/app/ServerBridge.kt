@@ -13,7 +13,9 @@ package com.indigisnap.app
 object ServerBridge {
 
     init {
+        android.util.Log.e("IndigiSnapDebug", "Loading libindigisnap.so")
         System.loadLibrary("indigisnap")
+        android.util.Log.e("IndigiSnapDebug", "libindigisnap.so loaded OK")
     }
 
     external fun StartServer(port: Int, baseDir: String)
