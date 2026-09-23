@@ -22,18 +22,27 @@ class ServerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
-        startServer()
+        android.util.Log.e("IndigiSnapDebug", "ServerService onCreate START")
+        try {
+            createNotificationChannel()
+            android.util.Log.e("IndigiSnapDebug", "Notification channel created")
+            startForeground(NOTIFICATION_ID, buildNotification())
+            android.util.Log.e("IndigiSnapDebug", "startForeground called")
+            startServer()
+        } catch (e: Throwable) {
+            android.util.Log.e("IndigiSnapDebug", "ServerService onCreate FAILED", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        android.util.Log.e("IndigiSnapDebug", "ServerService onStartCommand")
         return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        android.util.Log.e("IndigiSnapDebug", "ServerService onDestroy")
         try {
             ServerBridge.StopServer()
         } catch (e: Throwable) {
@@ -48,11 +57,13 @@ class ServerService : Service() {
             baseDir.mkdirs()
         }
         val basePath = baseDir.absolutePath
-        Log.i(TAG, "Starting Go server on 127.0.0.1:$PORT with base $basePath")
+        android.util.Log.e("IndigiSnapDebug", "Base path: $basePath")
+        android.util.Log.e("IndigiSnapDebug", "About to call ServerBridge.StartServer")
         try {
             ServerBridge.StartServer(PORT, basePath)
+            android.util.Log.e("IndigiSnapDebug", "ServerBridge.StartServer returned OK")
         } catch (e: Throwable) {
-            Log.e(TAG, "StartServer failed", e)
+            android.util.Log.e("IndigiSnapDebug", "ServerBridge.StartServer FAILED", e)
         }
     }
 
