@@ -18,6 +18,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        android.util.Log.e("IndigiSnapDebug", "MainActivity onCreate START")
 
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
@@ -29,9 +30,14 @@ class MainActivity : AppCompatActivity() {
         setContentView(webView)
 
         // Start the foreground service that runs the Go server
-        val serviceIntent = Intent(this, ServerService::class.java)
-        ContextCompat.startForegroundService(this, serviceIntent)
-
+        android.util.Log.e("IndigiSnapDebug", "About to start ServerService")
+        try {
+            val serviceIntent = Intent(this, ServerService::class.java)
+            ContextCompat.startForegroundService(this, serviceIntent)
+            android.util.Log.e("IndigiSnapDebug", "ServerService start OK")
+        } catch (e: Throwable) {
+            android.util.Log.e("IndigiSnapDebug", "ServerService start FAILED", e)
+        }
         // Show a brief loading screen while the server boots
         webView.loadData(
             """
