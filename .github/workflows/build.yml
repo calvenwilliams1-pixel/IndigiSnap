@@ -55,11 +55,27 @@ jobs:
             go build -buildmode=c-shared \
             -o ../app/src/main/jniLibs/armeabi-v7a/libindigisnap.so ./cmd/server
 
+      - name: Verify Go libraries were built
+        run: |
+          echo "=== arm64 dir ==="
+          ls -la app/src/main/jniLibs/arm64-v8a/ || echo "MISSING arm64 DIR"
+          echo "=== armv7 dir ==="
+          ls -la app/src/main/jniLibs/armeabi-v7a/ || echo "MISSING armv7 DIR"
+          echo "=== find all .so ==="
+          find app/src/main/jniLibs -type f || echo "NOTHING IN jniLibs"
+
       - name: Setup local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
+
+      - name: Inspect APK contents
+        run: |
+          echo "=== .so files in APK ==="
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -E "\.so" || echo "NO .so FILES IN APK"
+          echo "=== lib/ folder in APK ==="
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep "lib/" || echo "NO lib/ FOLDER IN APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
