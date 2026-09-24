@@ -62,6 +62,9 @@ class MainActivity : AppCompatActivity() {
                         pendingFileCallback = null
                         return false
                     }
+                    if (params.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                    }
                     startActivityForResult(intent, fileChooserRequestCode)
                     true
                 } catch (e: Exception) {
@@ -101,11 +104,25 @@ class MainActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == fileChooserRequestCode && pendingFileCallback != null) {
-            val results = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-            pendingFileCallback?.onReceiveValue(results)
-            pendingFileCallback = null
+        if (requestCode != fileChooserRequestCode || pendingFileCallback == null) return
+
+        val uris = linkedSetOf<Uri>()
+
+        if (resultCode == RESULT_OK) {
+            data?.clipData?.let { clip ->
+                for (i in 0 until clip.itemCount) {
+                    clip.getItemAt(i).uri?.let { uris.add(it) }
+                }
+            }
+            data?.data?.let { uris.add(it) }
         }
+
+        android.util.Log.e("IndigiSnapDebug", "File chooser result: ${uris.size} URI(s)")
+
+        pendingFileCallback?.onReceiveValue(
+            uris.takeIf { it.isNotEmpty() }?.toTypedArray()
+        )
+        pendingFileCallback = null
     }
 
     private fun waitForServerAndLoad() {
