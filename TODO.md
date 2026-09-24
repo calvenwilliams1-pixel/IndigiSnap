@@ -14,15 +14,15 @@ Legend: [x] done - [~] in progress - [ ] not started
 
 ## Batch 1 - Backend Features (offline-testable in browser)
 
-- [ ] 1.1 Real EXIF reading (goexif)
-- [ ] 1.2 EXIF orientation (disintegration/imaging)
-- [ ] 1.3 Logo route
-- [ ] 1.4 Recent folders tracking
+- [x] 1.1 Real EXIF reading (goexif)
+- [x] 1.2 EXIF orientation (disintegration/imaging)
+- [x] 1.3 Logo route
+- [~] 1.4 Recent folders tracking
 
 ## Batch 2 - UI Features (offline-testable in browser)
 
-- [ ] 2.1 Logo in header
-- [ ] 2.2 Recents pills
+- [ ] 2.1 Logo in header (backend ready, verify rendering)
+- [ ] 2.2 Recents pills (backend in progress)
 - [ ] 2.3 Folder browser modal
 - [ ] 2.4 Discreet upload button
 - [ ] 2.5 Gallery viewer enhancements (zoom, buttons, counter, info)
@@ -75,7 +75,7 @@ Do not build unless user explicitly activates distribution.
 
 ## Deferred (Do Not Build in v1)
 
-- Shared storage migration (see above)
+- Shared storage migration
 - EXIF write support
 - pHash / near-duplicate clustering
 - Rating/flag system
@@ -85,11 +85,11 @@ Do not build unless user explicitly activates distribution.
 
 ## Current Blocker / Next Action
 
-**Next action:** Batch 1.1 - Real EXIF reading in /image_info.
-- Update go-backend/internal/handlers/info.go
-- Add github.com/rwcarlsen/goexif/exif dependency
-- Test with curl in Steam Deck browser
-- Commit locally
+**Next action:** Batch 1.4 - Recent folders tracking.
+- meta.go: RecentEntry, LoadRecents, SaveRecents, AddRecent
+- browse.go: call AddRecent, pass Recents to template
+- interface.html: verify urlquery on .Path
+- Test with nested paths
 
 ## Open Decisions (Blocking Specific Batches)
 
@@ -101,9 +101,13 @@ See DECISIONS_OPEN.md for full list.
 
 ## Quick Reference Commands
 
-Run server locally (Steam Deck or Codespaces):
-  cd go-backend
-  INDIGISNAP_BASE_DIR=./IndigiSnap go run ./cmd/server
+Run server locally on Steam Deck (note port 8090 - 8080 used by Steam):
+  cd ~/IndigiSnap/go-backend
+  INDIGISNAP_PORT=8090 INDIGISNAP_BASE_DIR=./IndigiSnap go run ./cmd/server
+
+Kill running server (requires .bashrc source):
+  source ~/.bashrc
+  killindigi
 
 Build APK (CI):
   git push
@@ -117,6 +121,9 @@ Watch logs:
   adb logcat -v threadtime | grep IndigiSnapDebug
 
 Verify Go compiles:
-  cd go-backend && go vet ./... && go build ./cmd/server
+  cd ~/IndigiSnap/go-backend && go vet ./... && go build ./cmd/server
+
+Copy command output to clipboard:
+  cb <command>
 
 Repo location on Steam Deck: /home/deck/IndigiSnap
