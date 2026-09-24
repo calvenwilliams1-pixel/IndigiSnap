@@ -151,6 +151,7 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
     <button class="grid-size-btn active" data-size="medium" onclick="setGridSize('medium')">M</button>
     <button class="grid-size-btn" data-size="large" onclick="setGridSize('large')">L</button>
   </div>
+  <button onclick="openUploadPicker()" class="pill" title="Upload files from device" style="background:#110822; border-color:var(--psy); font-size:14px; padding:8px 14px;">⬆️ Upload</button>
 </div>
 
 <div id="batchBar" style="display:none;">
@@ -258,6 +259,11 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
 
 <button onclick="document.getElementById('videoInput').click()" class="fab" style="bottom:40px; right:50px; font-size:28px; box-shadow: 0 0 35px rgba(255,0,153,0.5);">🎬</button>
 
+<form id="uploadFormMulti" action="/upload" method="post" enctype="multipart/form-data" style="display:none;">
+  <input type="hidden" name="folder" value="{{ .Folder }}">
+  <input type="file" name="photo" id="fileInputMulti" accept="image/*,video/*" multiple onchange="document.getElementById('uploadFormMulti').submit()">
+</form>
+
 <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data" style="display:none;">
   <input type="hidden" name="folder" value="{{ .Folder }}">
   <input type="file" name="photo" id="photoInput" accept="image/*" capture="environment" onchange="document.getElementById('uploadForm').submit()">
@@ -313,6 +319,10 @@ const galleryImages = [
 {{ range $i, $img := .Images }}{{ if not $img.IsVideo }}{{ if $i }},{{ end }}"{{ $img.RelPath }}"{{ end }}{{ end }}
 ];
 let currentGalleryIndex = 0;
+
+function openUploadPicker() {
+  document.getElementById('fileInputMulti').click();
+}
 
 function toggleSelectMode() {
   selectMode = !selectMode;
