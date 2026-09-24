@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -249,3 +250,74 @@ func RemoveFromRecents(recents []map[string]string, folderPath string) []map[str
 
 // ErrNotImplemented is a placeholder for routes we have not yet ported.
 var ErrNotImplemented = errors.New("not implemented")
+
+
+// GetLogoPath returns the absolute path to the logo file in BASE_DIR/logo/,
+// or "" if no suitable file exists.
+//
+// Priority:
+//  1. First file whose basename (without extension) is exactly "logo"
+//     (alphabetically first if multiple extensions exist)
+//  2. Otherwise, first file alphabetically
+//  3. Otherwise, ""
+//
+// Hidden files (leading dot) are always excluded.
+//
+// SVG is allowed because this is a single-user installation. Multi-user
+// deployments may wish to restrict SVG uploads because SVG can contain
+// active content.
+func GetLogoPath(baseDir string) string {
+	logoDir := filepath.Join(baseDir, "logo")
+	entries, err := os.ReadDir(logoDir)
+	if err != nil {
+		return ""
+	}
+
+	allowed := map[string]bool{
+		".png": true, ".jpg": true, ".jpeg": true,
+		".gif": true, ".webp": true, ".svg": true,
+	}
+
+	var logoMatches []string
+	var others []string
+
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(name))
+		if !allowed[ext] {
+			continue
+		}
+		base := strings.TrimSuffix(name, ext)
+		if base == "logo" {
+			logoMatches = append(logoMatches, name)
+		} else {
+			others = append(others, name)
+		}
+	}
+
+	if len(logoMatches) > 0 {
+		sort.Strings(logoMatches)
+		return filepath.Join(logoDir, logoMatches[0])
+	}
+	if len(others) > 0 {
+		sort.Strings(others)
+		return filepath.Join(logoDir, others[0])
+	}
+	return ""
+}
+
+// GetLogoURL returns the URL path for the logo (/logo/<filename>), or ""
+// if no logo file exists.
+func GetLogoURL(baseDir string) string {
+	path := GetLogoPath(baseDir)
+	if path == "" {
+		return ""
+	}
+	return "/logo/" + url.PathEscape(filepath.Base(path))
+}

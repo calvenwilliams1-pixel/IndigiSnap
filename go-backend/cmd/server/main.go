@@ -44,6 +44,7 @@ func buildMux(baseDir string) *http.ServeMux {
 	browserHandler := handlers.NewBrowserHandler(baseDir)
 	batchHandler := handlers.NewBatchHandler(baseDir)
 	dupesHandler := handlers.NewDupesHandler(baseDir)
+	logoHandler := handlers.NewLogoHandler(baseDir)
 
 	mux := http.NewServeMux()
 
@@ -146,6 +147,7 @@ func buildMux(baseDir string) *http.ServeMux {
 	})
 
 	mux.Handle("/find_duplicates/", dupesHandler)
+	mux.Handle("/logo/", logoHandler)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
