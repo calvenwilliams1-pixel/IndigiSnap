@@ -1,104 +1,122 @@
-# IndigiSnap — TODO
+# IndigiSnap - TODO
 
-**Live status. Update after every meaningful commit.**
+Live status. Update after every meaningful commit.
 
-Legend: [x] done · [~] in progress · [ ] not started
+Legend: [x] done - [~] in progress - [ ] not started
 
----
+## Phase 0 - Stabilize Current Build
 
-## Phase 0 — Repo Housekeeping
-- [x] Create GitHub repo (calvenwilliams1-pixel/IndigiSnap)
-- [x] Add .gitignore (Gradle, build artifacts, local.properties, test media)
-- [x] Add MASTER_PROMPT.md (superseded by PROJECT.md)
+- [x] APK builds and installs
+- [x] Real UI renders on phone
+- [x] Core browse/view/favorites/batch operations work
+- [~] Camera buttons exist but do not open a real camera session
+- [ ] Known-good tag v0.2.0-stable
 
-## Phase 1 — Go Backend Skeleton
-- [x] Devcontainer with Android SDK, NDK, Java 17, Go 1.22
-- [x] Gradle wrapper, Android project structure
-- [x] Minimal APK builds, installs, shows hardcoded neon splash
-- [x] go-backend module initialized
-- [x] cmd/server/main.go with /health route
-- [x] Cross-compile to Android ARM64 verified (7 MB static binary)
+## Batch 1 - Backend Features (offline-testable in browser)
 
-## Phase 2 — Port Routes From Flask to Go
-- [x] internal/security/ — path safety, sanitization, file type checks
-- [x] internal/meta/ — folder metadata, favorites, breadcrumbs, prefix generation
-- [x] internal/ui/ — html/template + //go:embed, real UI in interface.html
-- [x] internal/video/ — ffprobe/ffmpeg wrappers, graceful no-op if missing
-- [x] handlers/browse.go — folder + media listing, sort, filter, favorites
-- [x] handlers/view.go — serves image/video bytes with cache headers
-- [x] handlers/actions.go — create folder, rename, delete, favorite toggle, set sort
-- [x] Register all routes in main.go
-- [x] Verify in Codespaces browser: real UI renders, tiles work, sort/filter work
+- [ ] 1.1 Real EXIF reading (goexif)
+- [ ] 1.2 EXIF orientation (disintegration/imaging)
+- [ ] 1.3 Logo route
+- [ ] 1.4 Recent folders tracking
 
-## Phase 3 — Embed Go Into The APK
-- [ ] Add //export StartServer and //export StopServer to Go
-- [ ] Compile Go as c-shared for arm64-v8a and armeabi-v7a
-- [ ] Drop .so files into app/src/main/jniLibs/
-- [ ] Create ServerBridge.kt with System.loadLibrary("indigisnap")
-- [ ] Create ServerService.kt (foreground service)
-- [ ] Update MainActivity.kt to start service and load http://127.0.0.1:8080
-- [ ] Update AndroidManifest.xml with service + permissions
-- [ ] Build APK and install on phone
-- [ ] Verify: real UI on phone, no browser chrome, all features work
+## Batch 2 - UI Features (offline-testable in browser)
 
-## Phase 4 — Polish
-- [ ] Custom app icon (512x512 source → all mipmap densities)
-- [ ] Add android:icon to manifest
-- [ ] Splash screen via androidx.core:core-splashscreen
-- [ ] theme-color meta for status bar
+- [ ] 2.1 Logo in header
+- [ ] 2.2 Recents pills
+- [ ] 2.3 Folder browser modal
+- [ ] 2.4 Discreet upload button
+- [ ] 2.5 Gallery viewer enhancements (zoom, buttons, counter, info)
+- [ ] 2.6 Folder-level rotate
+- [ ] 2.7 Set logo UI
 
-## Phase 5 — GitHub Actions CI
-- [ ] .github/workflows/build.yml — build APK on tag push
-- [ ] Upload APK as artifact
-- [ ] Optional: signed release build via secrets
+## Batch 3 - Kotlin Changes (need build to test)
 
-## Phase 6 — Real Storage (later)
-- [ ] Shared MediaStore access to /sdcard/Pictures/IndigiSnap/
-- [ ] READ_MEDIA_IMAGES / READ_MEDIA_VIDEO permissions
-- [ ] Android Photo Picker for uploads
-- [ ] One-time consent flow
+- [ ] 3.1 Splash screen
+- [ ] 3.2 Upload move semantics
+- [ ] 3.3 Camera capture wiring (CameraX)
+- [ ] 3.4 Share target integration
+- [ ] 3.5 Splash reads logo (deferred)
 
-## Phase 7 — Unported Routes (later)
-- [ ] POST /upload
-- [ ] POST /batch_delete
-- [ ] POST /batch_move
-- [ ] POST /batch_rename
-- [ ] POST /export_zip
-- [ ] POST /export_folder_zip
-- [ ] GET /find_duplicates
-- [ ] GET /image_info (EXIF reader)
-- [ ] GET /folder_browser
-- [ ] GET /logo
+## Batch 4 - Camera Implementation (CameraX)
 
-## Phase 8 — Play Store Prep (optional)
-- [ ] Privacy policy
-- [ ] Store assets (icon, feature graphic, screenshots)
-- [ ] AAB build
-- [ ] Data Safety form
-- [ ] Photo/Video Permissions Declaration
-- [ ] Internal test → closed test → production
+Spec: CAMERA_SPEC.md
 
----
+- [ ] CameraX dependencies + preview surface
+- [ ] Shutter + rapid-fire writes to inbox (item 1)
+- [ ] Session persistence across orientation (item 2)
+- [ ] Review grid with select-to-delete (item 3)
+- [ ] Commit = move + delete inbox (item 4)
+- [ ] Crash recovery prompt (item 5)
+- [ ] Feature parity: zoom, camera switch, flash (item 6)
+- [ ] Night mode with hardware-aware disabled state (item 6)
+- [ ] Test matrix on Samsung Android 14
+
+Do not start until:
+- [ ] File naming format decided (DECISIONS_OPEN.md)
+- [ ] Multi-snap review architecture decided (DECISIONS_OPEN.md)
+- [x] CAMERA_SPEC.md committed
+
+## Batch 6 - Trivial Wins + Polish
+
+- [ ] 6.1 Session memory + per-folder notes + debug overlay (L1+L2)
+- [ ] 6.2 EXIF formatted strings + EXIF-aware batch rename
+- [ ] 6.3 Search (folder-scoped + global)
+
+## Section 4 - Only If Distributing (Dormant)
+
+Do not build unless user explicitly activates distribution.
+
+- [ ] Signed release build + keystore
+- [ ] Tester distribution (Firebase or Play Internal Testing)
+- [ ] Play Store requirements
+- [ ] Shared storage migration
+- [ ] Accessibility pass
+- [ ] Tester documentation
+
+## Deferred (Do Not Build in v1)
+
+- Shared storage migration (see above)
+- EXIF write support
+- pHash / near-duplicate clustering
+- Rating/flag system
+- Config export/import
+- Splash reads logo (3.5)
+- Side-by-side compare in viewer
 
 ## Current Blocker / Next Action
 
-**Next action:** Start Phase 3. Write the JNI bridge in Go, compile as c-shared, wire up the Kotlin shell, build the APK.
+**Next action:** Batch 1.1 - Real EXIF reading in /image_info.
+- Update go-backend/internal/handlers/info.go
+- Add github.com/rwcarlsen/goexif/exif dependency
+- Test with curl in Steam Deck browser
+- Commit locally
 
-**Deadline pressure:** User leaves for Japan in ~2 days. Priority is a working APK on the phone before departure.
+## Open Decisions (Blocking Specific Batches)
 
----
+- File naming date format - blocks Batch 4
+- Share-target semantics - blocks Batch 3.4
+- Multi-snap review architecture - blocks Batch 4
+
+See DECISIONS_OPEN.md for full list.
 
 ## Quick Reference Commands
 
-Run the server locally (Codespaces):
-    cd /workspaces/IndigiSnap/go-backend && INDIGISNAP_BASE_DIR=./IndigiSnap go run ./cmd/server
+Run server locally (Steam Deck or Codespaces):
+  cd go-backend
+  INDIGISNAP_BASE_DIR=./IndigiSnap go run ./cmd/server
 
-Build the APK:
-    cd /workspaces/IndigiSnap && ./gradlew assembleDebug
-    # APK at app/build/outputs/apk/debug/app-debug.apk
+Build APK (CI):
+  git push
+  # wait for Actions, download artifact
 
-Check everything compiles:
-    cd /workspaces/IndigiSnap/go-backend && go vet ./...
+Install APK (via ADB):
+  adb install -r app-debug.apk
 
-Test media folder:
-    /workspaces/IndigiSnap/go-backend/IndigiSnap/  (gitignored, contains test files)
+Watch logs:
+  adb logcat -c
+  adb logcat -v threadtime | grep IndigiSnapDebug
+
+Verify Go compiles:
+  cd go-backend && go vet ./... && go build ./cmd/server
+
+Repo location on Steam Deck: /home/deck/IndigiSnap
