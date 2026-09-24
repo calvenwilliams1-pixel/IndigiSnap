@@ -16,3 +16,6 @@ Thumbs.db
 
 # Test media
 go-backend/IndigiSnap/
+
+# Go build output
+go-backend/server
