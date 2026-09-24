@@ -4,12 +4,15 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
@@ -19,6 +22,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private var pendingFileCallback: ValueCallback<Array<Uri>>? = null
     private val fileChooserRequestCode = 1001
+    private val cameraRequestCode = 1002
+    private var cameraOutputUri: Uri? = null
+    private var cameraIsVideo: Boolean = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,6 +62,12 @@ class MainActivity : AppCompatActivity() {
             ): Boolean {
                 pendingFileCallback?.onReceiveValue(null)
                 pendingFileCallback = callback
+
+                if (params?.isCaptureEnabled == true) {
+                    val acceptsVideo = params.acceptTypes?.any { it.startsWith("video/") } == true
+                    return launchCameraIntent(callback, video = acceptsVideo)
+                }
+
                 return try {
                     val intent = params?.createIntent()
                     if (intent == null) {
@@ -104,6 +116,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == cameraRequestCode) {
+            val uri = cameraOutputUri
+            cameraOutputUri = null
+            if (resultCode == RESULT_OK && uri != null) {
+                android.util.Log.e("IndigiSnapDebug", "Camera captured: $uri")
+                pendingFileCallback?.onReceiveValue(arrayOf(uri))
+            } else {
+                android.util.Log.e("IndigiSnapDebug", "Camera cancelled")
+                pendingFileCallback?.onReceiveValue(null)
+            }
+            pendingFileCallback = null
+            return
+        }
+
         if (requestCode != fileChooserRequestCode || pendingFileCallback == null) return
 
         val uris = linkedSetOf<Uri>()
@@ -123,6 +150,31 @@ class MainActivity : AppCompatActivity() {
             uris.takeIf { it.isNotEmpty() }?.toTypedArray()
         )
         pendingFileCallback = null
+    }
+
+    private fun launchCameraIntent(callback: ValueCallback<Array<Uri>>?, video: Boolean): Boolean {
+        return try {
+            val action = if (video) MediaStore.ACTION_VIDEO_CAPTURE else MediaStore.ACTION_IMAGE_CAPTURE
+            val ext = if (video) ".mp4" else ".jpg"
+            val cacheDir = File(cacheDir, "camera").apply { mkdirs() }
+            val tempFile = File.createTempFile("capture_", ext, cacheDir)
+            val uri = FileProvider.getUriForFile(this, "com.indigisnap.app.fileprovider", tempFile)
+            cameraOutputUri = uri
+            cameraIsVideo = video
+            val intent = Intent(action).apply {
+                putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (video) putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1)
+            }
+            android.util.Log.e("IndigiSnapDebug", "Launching camera: $action")
+            startActivityForResult(intent, cameraRequestCode)
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("IndigiSnapDebug", "Camera launch failed", e)
+            pendingFileCallback = null
+            false
+        }
     }
 
     private fun waitForServerAndLoad() {
