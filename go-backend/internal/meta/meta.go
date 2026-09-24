@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -320,4 +321,96 @@ func GetLogoURL(baseDir string) string {
 		return ""
 	}
 	return "/logo/" + url.PathEscape(filepath.Base(path))
+}
+
+
+// RecentEntry is one item in the recents list.
+type RecentEntry struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+const recentsFilename = ".indigisnap_recents.json"
+
+var recentsMu sync.Mutex
+
+// LoadRecents returns the last-5 recents list, filtering stale entries.
+// Stale = path no longer exists on disk.
+//
+// If the file is missing or malformed, returns an empty list.
+// Transient stat errors (not IsNotExist) keep the entry.
+func LoadRecents(baseDir string) []RecentEntry {
+	path := filepath.Join(baseDir, recentsFilename)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []RecentEntry{}
+	}
+	var entries []RecentEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return []RecentEntry{}
+	}
+
+	kept := make([]RecentEntry, 0, len(entries))
+	for _, e := range entries {
+		full := filepath.Join(baseDir, filepath.FromSlash(e.Path))
+		if _, err := os.Stat(full); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			// transient error - keep the entry
+			kept = append(kept, e)
+			continue
+		}
+		kept = append(kept, e)
+	}
+	return kept
+}
+
+// SaveRecents writes recents to BASE_DIR/.indigisnap_recents.json
+func SaveRecents(baseDir string, entries []RecentEntry) error {
+	if entries == nil {
+		entries = []RecentEntry{}
+	}
+	data, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(baseDir, recentsFilename), data, 0644)
+}
+
+// AddRecent updates recents with a newly visited folder and returns the new list.
+// Deduplicates by path, prepends, trims to 5, filters stale entries.
+// Returns the current list unchanged if folder is "" (root) or "favorites".
+func AddRecent(baseDir, folder string) []RecentEntry {
+	recentsMu.Lock()
+	defer recentsMu.Unlock()
+
+	if folder == "" || folder == "favorites" {
+		return LoadRecents(baseDir)
+	}
+
+	entries := LoadRecents(baseDir)
+
+	// Remove existing entry with same path (dedupe)
+	newEntries := make([]RecentEntry, 0, len(entries)+1)
+	for _, e := range entries {
+		if e.Path != folder {
+			newEntries = append(newEntries, e)
+		}
+	}
+
+	// Prepend new entry
+	entry := RecentEntry{
+		Name: filepath.Base(folder),
+		Path: folder,
+	}
+	newEntries = append([]RecentEntry{entry}, newEntries...)
+
+	// Trim to 5
+	if len(newEntries) > 5 {
+		newEntries = newEntries[:5]
+	}
+
+	_ = SaveRecents(baseDir, newEntries)
+	return newEntries
 }

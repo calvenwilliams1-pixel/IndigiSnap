@@ -251,12 +251,14 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Browse %q: %d folders, %d media (sort=%s filter=%s)",
 		folder, len(folders), len(uiMedia), sortBy, filterType)
 
+	recents := meta.AddRecent(h.BaseDir, folder)
+
 	data := ui.TemplateData{
 		Folder:      folder,
 		Items:       folders,
 		Images:      uiMedia,
 		Meta:        ui.FolderMeta{Sort: folderMeta.Sort},
-		Recents:     []ui.Recent{},
+		Recents:     toUIRecents(recents),
 		Page:        1,
 		TotalPages:  1,
 		LogoURL:     meta.GetLogoURL(h.BaseDir),
@@ -302,12 +304,14 @@ func (h *BrowseHandler) serveFavorites(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	recents := meta.LoadRecents(h.BaseDir)
+
 	data := ui.TemplateData{
 		Folder:      "favorites",
 		Items:       []ui.FolderItem{},
 		Images:      media,
 		Meta:        ui.FolderMeta{Sort: "Newest"},
-		Recents:     []ui.Recent{},
+		Recents:     toUIRecents(recents),
 		Page:        1,
 		TotalPages:  1,
 		LogoURL:     meta.GetLogoURL(h.BaseDir),
@@ -330,6 +334,16 @@ func toUIBreadcrumbs(in []meta.Breadcrumb) []ui.Breadcrumb {
 	out := make([]ui.Breadcrumb, 0, len(in))
 	for _, b := range in {
 		out = append(out, ui.Breadcrumb{Label: b.Label, Path: b.URL})
+	}
+	return out
+}
+
+
+// toUIRecents converts []meta.RecentEntry to []ui.Recent for the template.
+func toUIRecents(in []meta.RecentEntry) []ui.Recent {
+	out := make([]ui.Recent, 0, len(in))
+	for _, r := range in {
+		out = append(out, ui.Recent{Name: r.Name, Path: r.Path})
 	}
 	return out
 }

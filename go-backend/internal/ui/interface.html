@@ -100,6 +100,15 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
   {{ end }}
 </div>
 
+{{ if .Recents }}
+<div class="recents-container">
+  <span style="color: var(--psy); align-self: center; font-weight: bold; margin-right: 5px;">Recent:</span>
+  {{ range .Recents }}
+  <a href="/browse/{{ .Path | urlquery }}" class="recent-pill" title="{{ .Path }}">📁 {{ .Name }}</a>
+  {{ end }}
+</div>
+{{ end }}
+
 <div class="controls-bar">
   <button onclick="toggleSelectMode()" class="pill">Select Mode</button>
   <form action="/set_sort/{{ .Folder }}" method="post" style="display:inline;">
