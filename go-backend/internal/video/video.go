@@ -95,8 +95,20 @@ func GenerateThumbnailBackground(videoPath string) {
 	}()
 }
 
-// CleanOrphanThumbnails removes *_thumb.jpg files whose video no longer exists.
+// CleanOrphanThumbnails removes orphaned thumbnail files whose video no
+// longer exists. Handles two naming conventions:
+//
+//   Legacy: <basename>_thumb.jpg alongside the video (same folder)
+//   New:    .thumbs/<basename>.jpg in a hidden subfolder
+//
+// Also removes the .thumbs/ folder if it becomes empty.
 func CleanOrphanThumbnails(folderPath string) {
+	cleanLegacyThumbs(folderPath)
+	cleanHiddenThumbs(folderPath)
+}
+
+// cleanLegacyThumbs handles the <basename>_thumb.jpg naming.
+func cleanLegacyThumbs(folderPath string) {
 	entries, err := os.ReadDir(folderPath)
 	if err != nil {
 		return
@@ -107,16 +119,50 @@ func CleanOrphanThumbnails(folderPath string) {
 			continue
 		}
 		videoBase := strings.TrimSuffix(name, "_thumb.jpg")
-		found := false
-		for _, ext := range []string{".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".wmv", ".m4v"} {
-			if _, err := os.Stat(filepath.Join(folderPath, videoBase+ext)); err == nil {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !hasMatchingVideo(folderPath, videoBase) {
 			_ = os.Remove(filepath.Join(folderPath, name))
-			log.Printf("Removed orphan thumbnail: %s", name)
+			log.Printf("Removed orphan legacy thumbnail: %s", name)
 		}
 	}
+}
+
+// cleanHiddenThumbs handles the .thumbs/<basename>.jpg naming.
+// Also removes the .thumbs/ folder if it becomes empty.
+func cleanHiddenThumbs(folderPath string) {
+	thumbsDir := filepath.Join(folderPath, ".thumbs")
+	entries, err := os.ReadDir(thumbsDir)
+	if err != nil {
+		return
+	}
+	remaining := 0
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".jpg") {
+			remaining++
+			continue
+		}
+		// Thumbnail name is <video_basename>.jpg
+		videoBase := strings.TrimSuffix(name, ".jpg")
+		if !hasMatchingVideo(folderPath, videoBase) {
+			_ = os.Remove(filepath.Join(thumbsDir, name))
+			log.Printf("Removed orphan hidden thumbnail: %s", name)
+		} else {
+			remaining++
+		}
+	}
+	// Remove .thumbs/ folder if empty
+	if remaining == 0 {
+		_ = os.Remove(thumbsDir)
+	}
+}
+
+// hasMatchingVideo reports whether a video with the given basename (without
+// extension) exists in the folder, checking all known video extensions.
+func hasMatchingVideo(folderPath, videoBase string) bool {
+	for _, ext := range []string{".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".wmv", ".m4v"} {
+		if _, err := os.Stat(filepath.Join(folderPath, videoBase+ext)); err == nil {
+			return true
+		}
+	}
+	return false
 }

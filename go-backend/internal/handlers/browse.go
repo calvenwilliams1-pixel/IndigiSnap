@@ -12,6 +12,7 @@ import (
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/meta"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/security"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/ui"
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/video"
 )
 
 type BrowseHandler struct {
@@ -59,6 +60,9 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Cannot create folder", 500)
 		return
 	}
+
+	// Clean up any orphaned thumbnails before rendering the folder
+	video.CleanOrphanThumbnails(fullPath)
 
 	sortBy := r.URL.Query().Get("sort_by")
 	if sortBy == "" {
@@ -238,10 +242,15 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if m.IsVideo {
 			mediaType = "video"
 		}
+		thumbURL := ""
+		if m.IsVideo {
+			thumbURL = findVideoThumbURL(h.BaseDir, filepath.Join(fullPath, m.Name))
+		}
 		uiMedia = append(uiMedia, ui.MediaItem{
 			Name:       m.Name,
 			RelPath:    url.QueryEscape(m.RelPath),
 			IsVideo:    m.IsVideo,
+			ThumbURL:   thumbURL,
 			Type:       mediaType,
 			Size:       m.Size,
 			IsFavorite: m.IsFavorite,
@@ -294,10 +303,15 @@ func (h *BrowseHandler) serveFavorites(w http.ResponseWriter, r *http.Request) {
 		if isVid {
 			mediaType = "video"
 		}
+		thumbURL := ""
+		if isVid {
+			thumbURL = findVideoThumbURL(h.BaseDir, full)
+		}
 		media = append(media, ui.MediaItem{
 			Name:       name,
 			RelPath:    url.QueryEscape(rel),
 			IsVideo:    isVid,
+			ThumbURL:   thumbURL,
 			Type:       mediaType,
 			Size:       info.Size(),
 			IsFavorite: true,
@@ -346,4 +360,36 @@ func toUIRecents(in []meta.RecentEntry) []ui.Recent {
 		out = append(out, ui.Recent{Name: r.Name, Path: r.Path})
 	}
 	return out
+}
+
+// findVideoThumbURL returns the URL-safe /view/ path for a video thumbnail,
+// or "" if no thumbnail exists. Checks the new ".thumbs/<basename>.jpg"
+// naming first, then falls back to the legacy "<basename>_thumb.jpg" naming.
+//
+// videoPath is the absolute path to the video file.
+func findVideoThumbURL(baseDir, videoPath string) string {
+	ext := filepath.Ext(videoPath)
+	base := strings.TrimSuffix(videoPath, ext)
+	baseName := filepath.Base(base)
+	dir := filepath.Dir(videoPath)
+
+	// New naming: .thumbs/<basename>.jpg
+	newThumb := filepath.Join(dir, ".thumbs", baseName+".jpg")
+	// Legacy naming: <basename>_thumb.jpg
+	legacyThumb := filepath.Join(dir, baseName+"_thumb.jpg")
+
+	var chosen string
+	if _, err := os.Stat(newThumb); err == nil {
+		chosen = newThumb
+	} else if _, err := os.Stat(legacyThumb); err == nil {
+		chosen = legacyThumb
+	} else {
+		return ""
+	}
+
+	rel, err := filepath.Rel(baseDir, chosen)
+	if err != nil {
+		return ""
+	}
+	return "/view/" + url.QueryEscape(filepath.ToSlash(rel))
 }

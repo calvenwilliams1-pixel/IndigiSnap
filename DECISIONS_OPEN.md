@@ -74,3 +74,12 @@ Spec: hidden .thumbs/ folder, JPEG, 10 percent frame, generated on commit,
 deleted with video, orphan sweep on /browse.
 See CAMERA_SPEC.md Item 9.
 Date: 2026-09-25
+
+### Rotate + EXIF Interaction (Resolved: strip EXIF on rotate)
+Rule: /rotate_picture normalizes visual orientation, applies the requested
+rotation, then re-encodes the image without EXIF metadata.
+Steps: read EXIF orientation, decode, apply orientation correction,
+apply user rotation, re-encode (imaging.Save strips metadata naturally),
+write via temp + atomic rename, delete stale thumbnails.
+After rotation, pixel orientation is the source of truth.
+Date: 2026-09-25

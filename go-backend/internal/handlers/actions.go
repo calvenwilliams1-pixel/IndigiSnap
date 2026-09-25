@@ -152,10 +152,8 @@ func (h *ActionHandler) DeletePicture(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Remove associated thumbnail if video
-	base := strings.TrimSuffix(target, filepath.Ext(target))
-	thumb := base + "_thumb.jpg"
-	_ = os.Remove(thumb)
+	// Remove associated thumbnails (legacy and new .thumbs/ naming)
+	deleteVideoThumbnails(target)
 
 	if err := os.Remove(target); err != nil {
 		http.Error(w, "Delete failed: "+err.Error(), 500)
@@ -308,4 +306,21 @@ func (h *ActionHandler) SetSort(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("SetSort %q -> %s", folder, sortValue)
 	http.Redirect(w, r, back, http.StatusSeeOther)
+}
+
+// deleteVideoThumbnails removes any thumbnail variants associated with
+// a file. Handles both the legacy "_thumb.jpg" naming (same folder) and
+// the new ".thumbs/<basename>.jpg" naming (hidden subfolder).
+//
+// Silently ignores missing files. Safe to call on any media path.
+func deleteVideoThumbnails(fullPath string) {
+	base := strings.TrimSuffix(fullPath, filepath.Ext(fullPath))
+	baseName := filepath.Base(base)
+
+	// Legacy: same folder, _thumb.jpg suffix
+	_ = os.Remove(base + "_thumb.jpg")
+
+	// New: hidden .thumbs/ subfolder
+	thumbsDir := filepath.Join(filepath.Dir(fullPath), ".thumbs")
+	_ = os.Remove(filepath.Join(thumbsDir, baseName+".jpg"))
 }

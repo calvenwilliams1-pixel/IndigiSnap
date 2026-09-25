@@ -68,9 +68,8 @@ func (h *BatchHandler) BatchDelete(w http.ResponseWriter, r *http.Request) {
 			if info.IsDir() {
 				os.RemoveAll(target)
 			} else {
-				// remove thumb
-				b := strings.TrimSuffix(target, filepath.Ext(target))
-				os.Remove(b + "_thumb.jpg")
+				// remove thumbnails (legacy and new .thumbs/ naming)
+				deleteVideoThumbnails(target)
 				os.Remove(target)
 			}
 		}
