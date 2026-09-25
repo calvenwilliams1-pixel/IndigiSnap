@@ -249,16 +249,22 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
 <div id="imgViewer" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(5, 2, 10, 0.98); z-index:2000; flex-direction:column; align-items:center; justify-content:center;">
   <div style="width:100%; padding: 20px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
     <button onclick="closeViewer()" style="background:var(--neon); border:2px solid white; padding:15px 30px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">❌ Close</button>
-    <div style="display:flex; gap:10px;">
-      <button onclick="rotateCurrentImage(270)" title="Rotate left" style="background:var(--neon); border:2px solid white; padding:15px 25px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">↺</button>
-      <button onclick="rotateCurrentImage(90)" title="Rotate right" style="background:var(--neon); border:2px solid white; padding:15px 25px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">↻</button>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button onclick="viewerShare()" title="Share" style="background:var(--neon); border:2px solid white; padding:15px 20px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">📤</button>
+      <button onclick="viewerToggleFavorite(this)" title="Favorite" style="background:var(--neon); border:2px solid white; padding:15px 20px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">⭐</button>
+      <button onclick="viewerDelete()" title="Delete" style="background:var(--neon); border:2px solid white; padding:15px 20px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">🗑️</button>
+      <button onclick="rotateCurrentImage(270)" title="Rotate left" style="background:var(--neon); border:2px solid white; padding:15px 20px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">↺</button>
+      <button onclick="rotateCurrentImage(90)" title="Rotate right" style="background:var(--neon); border:2px solid white; padding:15px 20px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">↻</button>
+      <button onclick="showImageInfo()" title="Info" style="background:var(--neon); border:2px solid white; padding:15px 20px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">ℹ️</button>
     </div>
   </div>
-  <div style="width:100%; height:75%; display:flex; align-items:center; justify-content:center; position:relative;">
-    <button onclick="navigateGallery(-1)" style="position:absolute; left:20px; background:rgba(18, 8, 34, 0.8); border:2px solid var(--psy); color:white; font-size:32px; padding:20px; border-radius:15px; cursor:pointer;">◀</button>
-    <img id="viewerImg" src="" alt="Gallery Image" style="max-width:95%; max-height:100%; border:4px solid var(--neon); box-shadow:0 0 30px var(--neon); object-fit:contain;">
-    <button onclick="navigateGallery(1)" style="position:absolute; right:20px; background:rgba(18, 8, 34, 0.8); border:2px solid var(--psy); color:white; font-size:32px; padding:20px; border-radius:15px; cursor:pointer;">▶</button>
+  <div id="viewerImageWrapper" style="width:100%; height:75%; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; touch-action:none;">
+    <button onclick="navigateGallery(-1)" style="position:absolute; left:20px; background:rgba(18, 8, 34, 0.8); border:2px solid var(--psy); color:white; font-size:32px; padding:20px; border-radius:15px; cursor:pointer; z-index:10;">◀</button>
+    <img id="viewerImg" src="" alt="Gallery Image" style="max-width:95%; max-height:100%; border:4px solid var(--neon); box-shadow:0 0 30px var(--neon); object-fit:contain; transform-origin:center center; transition:transform 0.2s ease-out;">
+    <button onclick="navigateGallery(1)" style="position:absolute; right:20px; background:rgba(18, 8, 34, 0.8); border:2px solid var(--psy); color:white; font-size:32px; padding:20px; border-radius:15px; cursor:pointer; z-index:10;">▶</button>
+    <div id="viewerCounter" style="position:absolute; bottom:15px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.7); color:var(--psy); padding:8px 20px; border-radius:20px; font-size:16px; font-weight:bold; z-index:10;">0 of 0</div>
   </div>
+  <div id="viewerInfoPanel" style="display:none; width:100%; background:rgba(18, 8, 34, 0.95); padding:15px; border-top:3px solid var(--psy); color:white; font-size:14px; text-align:center; max-height:25vh; overflow-y:auto;"></div>
 </div>
 
 <button onclick="document.getElementById('modal').style.display='block'" class="fab" style="bottom:40px; left:50px; font-size:32px;">＋</button>
@@ -640,6 +646,182 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.key === 'Escape' && selectMode) toggleSelectMode();
 });
+
+// --- Viewer enhancements (2.5) ---
+
+function updateViewerCounter() {
+  const el = document.getElementById('viewerCounter');
+  if (!el) return;
+  const total = galleryImages.length;
+  const pos = currentGalleryIndex + 1;
+  el.textContent = pos + ' of ' + total;
+}
+
+function viewerShare() {
+  if (!currentImagePath) return;
+  const name = currentImagePath.split('/').pop();
+  shareFile(currentImagePath, name);
+}
+
+function viewerToggleFavorite(btn) {
+  if (!currentImagePath) return;
+  fetch('/toggle_favorite/' + currentImagePath, { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        if (data.favorited) {
+          btn.style.color = 'gold';
+          btn.style.borderColor = 'gold';
+        } else {
+          btn.style.color = '';
+          btn.style.borderColor = '';
+        }
+      }
+    })
+    .catch(() => alert('Favorite toggle failed'));
+}
+
+function viewerDelete() {
+  if (!currentImagePath) return;
+  if (!confirm('Delete this file permanently?')) return;
+  const pathToDelete = currentImagePath;
+  fetch('/delete_picture/' + pathToDelete, { method: 'POST' })
+    .then(res => {
+      if (!res.ok) throw new Error('Delete failed');
+      // Remove from gallery array and advance
+      const idx = galleryImages.indexOf(pathToDelete);
+      if (idx >= 0) galleryImages.splice(idx, 1);
+      if (galleryImages.length === 0) {
+        closeViewer();
+        location.reload();
+        return;
+      }
+      if (currentGalleryIndex >= galleryImages.length) {
+        currentGalleryIndex = 0;
+      }
+      currentImagePath = galleryImages[currentGalleryIndex];
+      updateViewerSource();
+      updateViewerCounter();
+    })
+    .catch(err => alert(err.message));
+}
+
+function showImageInfo() {
+  if (!currentImagePath) return;
+  const panel = document.getElementById('viewerInfoPanel');
+  if (panel.style.display === 'block') {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.innerHTML = '<div style="color:#888;">Loading info...</div>';
+  panel.style.display = 'block';
+  fetch('/image_info/' + currentImagePath)
+    .then(res => res.json())
+    .then(data => {
+      let html = '';
+      if (data.has_exif) {
+        const parts = [];
+        if (data.camera_make || data.camera_model) {
+          parts.push('📷 ' + (data.camera_make + ' ' + data.camera_model).trim());
+        }
+        if (data.iso) parts.push('ISO ' + data.iso);
+        if (data.shutter) parts.push(data.shutter);
+        if (data.aperture) parts.push(data.aperture);
+        if (data.datetime) parts.push('📅 ' + data.datetime);
+        html = parts.length > 0 ? parts.join(' · ') : '<div style="color:#888;">EXIF present but empty</div>';
+      } else {
+        html = '<div style="color:#888;">No EXIF data</div>';
+      }
+      if (data.width && data.height) {
+        html += '<div style="margin-top:8px; color:#888;">' + data.width + ' × ' + data.height;
+        if (data.size_bytes) html += ' · ' + formatBytes(data.size_bytes);
+        html += '</div>';
+      }
+      panel.innerHTML = html;
+    })
+    .catch(() => {
+      panel.innerHTML = '<div style="color:#888;">Could not load info</div>';
+    });
+}
+
+function formatBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+// --- Pinch and double-tap zoom ---
+let viewerScale = 1;
+let pinchStartDist = 0;
+let pinchStartScale = 1;
+let lastTapTime = 0;
+
+function resetViewerZoom() {
+  viewerScale = 1;
+  const img = document.getElementById('viewerImg');
+  if (img) img.style.transform = 'scale(1)';
+}
+
+function applyViewerZoom() {
+  const img = document.getElementById('viewerImg');
+  if (!img) return;
+  img.style.transform = 'scale(' + viewerScale + ')';
+}
+
+function initViewerGestures() {
+  const wrapper = document.getElementById('viewerImageWrapper');
+  if (!wrapper) return;
+  wrapper.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDist = Math.sqrt(dx * dx + dy * dy);
+      pinchStartScale = viewerScale;
+    }
+  }, { passive: true });
+
+  wrapper.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 2 && pinchStartDist > 0) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const ratio = dist / pinchStartDist;
+      viewerScale = Math.max(1, Math.min(4, pinchStartScale * ratio));
+      applyViewerZoom();
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  wrapper.addEventListener('touchend', function(e) {
+    if (e.touches.length < 2) {
+      pinchStartDist = 0;
+    }
+  }, { passive: true });
+
+  wrapper.addEventListener('click', function(e) {
+    // Double-tap toggles 1x / 2x
+    const now = Date.now();
+    if (now - lastTapTime < 300) {
+      viewerScale = (viewerScale > 1) ? 1 : 2;
+      applyViewerZoom();
+      lastTapTime = 0;
+    } else {
+      lastTapTime = now;
+    }
+  });
+}
+
+// --- Hook counter updates into viewer ---
+const originalUpdateViewerSource = updateViewerSource;
+updateViewerSource = function() {
+  originalUpdateViewerSource();
+  resetViewerZoom();
+  updateViewerCounter();
+};
+
+// Initialize gestures on load
+document.addEventListener('DOMContentLoaded', initViewerGestures);
+
 </script>
 </body>
 </html>
