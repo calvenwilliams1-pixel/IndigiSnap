@@ -227,6 +227,9 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
 {{ end }}
 
 <div id="actionModal" style="display:none; position:fixed; top:25%; left:10%; width:80%; padding:30px; z-index:1500; background:rgba(18, 8, 34, 0.95); border:4px solid var(--neon); border-radius:30px;">
+  {{ if not .Folder }}
+  <button onclick="setLogo()" class="pill">🖼️ Set Logo</button>
+  {{ end }}
   <button onclick="exportFolder(currentActionFolder)" class="pill">📦 Export Zip</button>
   <button onclick="findDuplicates(currentActionFolder)" class="pill">🔍 Find Duplicates</button>
   <button onclick="renameFolder()" class="pill">✏️ Rename</button>
@@ -258,6 +261,10 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
 <button onclick="document.getElementById('photoInput').click()" class="fab" style="bottom:40px; right:120px; font-size:28px; box-shadow: 0 0 35px rgba(0,255,153,0.5);">📷</button>
 
 <button onclick="document.getElementById('videoInput').click()" class="fab" style="bottom:40px; right:50px; font-size:28px; box-shadow: 0 0 35px rgba(255,0,153,0.5);">🎬</button>
+
+<form id="setLogoForm" action="/set_logo" method="post" enctype="multipart/form-data" style="display:none;">
+  <input type="file" name="logo" id="logoInput" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" onchange="document.getElementById('setLogoForm').submit()">
+</form>
 
 <form id="uploadFormMulti" action="/upload" method="post" enctype="multipart/form-data" style="display:none;">
   <input type="hidden" name="folder" value="{{ .Folder }}">
@@ -322,6 +329,11 @@ let currentGalleryIndex = 0;
 
 function openUploadPicker() {
   document.getElementById('fileInputMulti').click();
+}
+
+function setLogo() {
+  document.getElementById('actionModal').style.display = 'none';
+  document.getElementById('logoInput').click();
 }
 
 function toggleSelectMode() {

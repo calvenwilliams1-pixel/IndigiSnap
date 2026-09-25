@@ -148,6 +148,13 @@ func buildMux(baseDir string) *http.ServeMux {
 
 	mux.Handle("/find_duplicates/", dupesHandler)
 	mux.Handle("/logo/", logoHandler)
+	mux.HandleFunc("/set_logo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+		logoHandler.SetLogo(w, r)
+	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
