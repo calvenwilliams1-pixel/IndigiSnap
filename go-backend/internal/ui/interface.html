@@ -151,7 +151,8 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
     <button class="grid-size-btn active" data-size="medium" onclick="setGridSize('medium')">M</button>
     <button class="grid-size-btn" data-size="large" onclick="setGridSize('large')">L</button>
   </div>
-  <button onclick="openUploadPicker()" class="pill" title="Upload files from device" style="background:#110822; border-color:var(--psy); font-size:14px; padding:8px 14px;">⬆️ Upload</button>
+  <button onclick="openImageUploadPicker()" class="pill" title="Upload images from device" style="background:#110822; border-color:var(--psy); font-size:14px; padding:8px 14px;">⬆️ 📷 Images</button>
+  <button onclick="openVideoUploadPicker()" class="pill" title="Upload videos from device" style="background:#110822; border-color:var(--psy); font-size:14px; padding:8px 14px;">⬆️ 🎬 Videos</button>
 </div>
 
 <div id="batchBar" style="display:none;">
@@ -268,7 +269,8 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
 
 <form id="uploadFormMulti" action="/upload" method="post" enctype="multipart/form-data" style="display:none;">
   <input type="hidden" name="folder" value="{{ .Folder }}">
-  <input type="file" name="photo" id="fileInputMulti" accept="image/*,video/*" multiple onchange="document.getElementById('uploadFormMulti').submit()">
+  <input type="file" name="photo" id="fileInputImages" accept="image/*" multiple onchange="document.getElementById('uploadFormMulti').submit()">
+  <input type="file" name="photo" id="fileInputVideos" accept="video/*" multiple onchange="document.getElementById('uploadFormMulti').submit()">
 </form>
 
 <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data" style="display:none;">
@@ -327,8 +329,12 @@ const galleryImages = [
 ];
 let currentGalleryIndex = 0;
 
-function openUploadPicker() {
-  document.getElementById('fileInputMulti').click();
+function openImageUploadPicker() {
+  document.getElementById('fileInputImages').click();
+}
+
+function openVideoUploadPicker() {
+  document.getElementById('fileInputVideos').click();
 }
 
 function setLogo() {
