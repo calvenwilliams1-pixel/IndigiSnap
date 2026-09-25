@@ -145,3 +145,51 @@ Do not overcomplicate. No batch-rotate for v1.
 - File naming format decided (see DECISIONS_OPEN.md)
 - Multi-snap review screen architecture decided (see DECISIONS_OPEN.md)
 - This spec committed
+
+
+## Item 8 - File Naming Format
+
+Camera captures use the format:
+
+    {immediate_folder}_{MM-DD-YY}.{ext}
+
+Examples (in folder Family/Reunion, photos taken 2026-09-24):
+- Family_Reunion_09-24-26.jpg
+- Family_Reunion_09-24-26_1.jpg   (second photo same day)
+- Family_Reunion_09-24-26_2.jpg   (third photo same day)
+
+The immediate folder name is the leaf folder where the camera was launched.
+The date is the capture date in MM-DD-YY format (US-style month-day-year).
+Duplicate names on the same day append _1, _2, _3, etc.
+
+The same format applies to video files, using the video extension.
+
+## Item 9 - Video Thumbnail Generation
+
+When a video is captured and committed from the inbox to a folder, a
+thumbnail is generated automatically.
+
+Spec:
+- Location: hidden .thumbs/ subfolder inside the same folder as the video
+- Path: {folder}/.thumbs/{video_basename}.jpg
+- Format: JPEG, low quality is fine (target ~160-320px wide, quality 70-80)
+- Frame: 10 percent into the video (matches original Flask behavior)
+- Generation timing: on commit (when video moves from inbox to final folder)
+- Failure handling: if generation fails, video still commits, grid shows
+  placeholder emoji until thumbnail is regenerated
+
+Cleanup:
+- When a video is deleted (single or batch), its thumbnail is deleted too
+- On every /browse call, an orphan sweep runs on .thumbs/ folders,
+  deleting thumbnails whose video no longer exists
+- The sweep extends the existing CleanOrphanThumbnails logic in the
+  video package
+
+Display:
+- Video tiles in the grid look for .thumbs/{basename}.jpg
+- If present, served via existing /view/ route as <img src>
+- If missing, fall back to the placeholder emoji
+
+Regeneration:
+- If the thumbnail is missing but the video exists, regenerate on demand
+  (runs as a background task when /browse detects the gap)

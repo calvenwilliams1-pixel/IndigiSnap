@@ -9,119 +9,128 @@ Legend: [x] done - [~] in progress - [ ] not started
 - [x] APK builds and installs
 - [x] Real UI renders on phone
 - [x] Core browse/view/favorites/batch operations work
-- [~] Camera buttons exist but do not open a real camera session
-- [ ] Known-good tag v0.2.0-stable
+- [x] Camera and video buttons open system camera (one-shot)
+- [ ] CameraX multi-snap flow (replaces one-shot)
 
-## Batch 1 - Backend Features (offline-testable in browser)
+## Batch 1 - Backend Features - COMPLETE
 
 - [x] 1.1 Real EXIF reading (goexif)
 - [x] 1.2 EXIF orientation (disintegration/imaging)
 - [x] 1.3 Logo route
-- [~] 1.4 Recent folders tracking
+- [x] 1.4 Recent folders tracking
 
-## Batch 2 - UI Features (offline-testable in browser)
+## Batch 2 - UI Features
 
-- [ ] 2.1 Logo in header (backend ready, verify rendering)
-- [ ] 2.2 Recents pills (backend in progress)
-- [ ] 2.3 Folder browser modal
-- [ ] 2.4 Discreet upload button
-- [ ] 2.5 Gallery viewer enhancements (zoom, buttons, counter, info)
+- [x] 2.1 Logo in header
+- [x] 2.2 Recents pills
+- [x] 2.3 Folder browser modal
+- [x] 2.4 Discreet upload button
+- [ ] 2.4b Upload filter (images-only / videos-only)
+- [ ] 2.5 Gallery viewer enhancements (zoom, buttons, counter, info panel)
 - [ ] 2.6 Folder-level rotate
+  - [ ] Design review: EXIF orientation interaction
+  - [ ] Backend: POST /rotate_picture/<path>
+  - [ ] UI: rotate button in viewer
 - [ ] 2.7 Set logo UI
+  - [ ] Backend: POST /set_logo (with MIME + size validation)
+  - [ ] UI: Set Logo menu item in root folder
 
-## Batch 3 - Kotlin Changes (need build to test)
+## Batch 3 - Kotlin Changes
 
 - [ ] 3.1 Splash screen
-- [ ] 3.2 Upload move semantics
-- [ ] 3.3 Camera capture wiring (CameraX)
-- [ ] 3.4 Share target integration
-- [ ] 3.5 Splash reads logo (deferred)
+- [ ] 3.2 Upload move semantics (move, not copy)
+- [ ] 3.4 Share target integration (pending decision on semantics)
+- [ ] 3.5 Splash reads logo
+- [ ] 3.6 Permission prompt fix (ask once, not every launch)
 
-## Batch 4 - Camera Implementation (CameraX)
+## Batch 4 - CameraX Multi-Snap (in progress)
 
 Spec: CAMERA_SPEC.md
 
-- [ ] CameraX dependencies + preview surface
-- [ ] Shutter + rapid-fire writes to inbox (item 1)
-- [ ] Session persistence across orientation (item 2)
-- [ ] Review grid with select-to-delete (item 3)
-- [ ] Commit = move + delete inbox (item 4)
-- [ ] Crash recovery prompt (item 5)
-- [ ] Feature parity: zoom, camera switch, flash (item 6)
-- [ ] Night mode with hardware-aware disabled state (item 6)
-- [ ] Test matrix on Samsung Android 14
+- [ ] 4.1 CameraX foundation (preview + shutter + close)
+- [ ] 4.2 Rapid-fire shooting (inbox writes)
+- [ ] 4.3 Thumbnail strip + swipe review
+- [ ] 4.4 Commit to folder (move from inbox, rename)
+- [ ] 4.5 Crash recovery (orphaned inbox prompt)
+- [ ] 4.6 Video capture + thumbnail generation on commit
+- [ ] 4.7 Full camera controls (zoom, front/back, flash, resolution, night mode)
+- [ ] 4.8 Orientation handling (session persists, per-shot EXIF)
+- [ ] 4.9 WebView integration (JS bridge)
+- [ ] 4.10 Test matrix on Samsung Android 14
 
-Do not start until:
-- [ ] File naming format decided (DECISIONS_OPEN.md)
-- [ ] Multi-snap review architecture decided (DECISIONS_OPEN.md)
-- [x] CAMERA_SPEC.md committed
-
-## Batch 6 - Trivial Wins + Polish
+## Batch 6 - Polish
 
 - [ ] 6.1 Session memory + per-folder notes + debug overlay (L1+L2)
 - [ ] 6.2 EXIF formatted strings + EXIF-aware batch rename
 - [ ] 6.3 Search (folder-scoped + global)
+- [ ] 6.4 Video thumbnail: delete-on-video-delete
+- [ ] 6.5 Video thumbnail: orphan sweep on /browse
+- [ ] 6.6 Video thumbnail: regen on demand if missing
 
-## Section 4 - Only If Distributing (Dormant)
+## Section 4 - Distribution (Held By User)
 
-Do not build unless user explicitly activates distribution.
+Activated only when user says go.
 
 - [ ] Signed release build + keystore
-- [ ] Tester distribution (Firebase or Play Internal Testing)
+- [ ] Tester distribution
 - [ ] Play Store requirements
 - [ ] Shared storage migration
 - [ ] Accessibility pass
 - [ ] Tester documentation
 
-## Deferred (Do Not Build in v1)
+## Deferred (Do Not Build) - User Must Approve
 
-- Shared storage migration
-- EXIF write support
 - pHash / near-duplicate clustering
 - Rating/flag system
 - Config export/import
-- Splash reads logo (3.5)
 - Side-by-side compare in viewer
+
+## Rules
+
+- No deferring work because it is hard. All pending features ship in v1.
+- No resolving open decisions silently. Ask.
+- Local Steam Deck build preferred (see RESUME.md for environment setup).
 
 ## Current Blocker / Next Action
 
-**Next action:** Batch 1.4 - Recent folders tracking.
-- meta.go: RecentEntry, LoadRecents, SaveRecents, AddRecent
-- browse.go: call AddRecent, pass Recents to template
-- interface.html: verify urlquery on .Path
-- Test with nested paths
+**Next action:** Batch 4.1 - CameraX foundation.
+- Add CameraX dependencies to app/build.gradle.kts
+- Create CameraActivity.kt with preview surface
+- Add CAMERA + RECORD_AUDIO permissions to manifest
+- Test preview + single shot + return to WebView
 
-## Open Decisions (Blocking Specific Batches)
+**Prerequisite:** Steam Deck Android SDK install (in progress - resume at hotel wifi).
+- sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+- create local.properties
+- ./gradlew assembleDebug
 
-- File naming date format - blocks Batch 4
-- Share-target semantics - blocks Batch 3.4
-- Multi-snap review architecture - blocks Batch 4
+## Open Decisions
 
-See DECISIONS_OPEN.md for full list.
+- Share-target semantics: copy-then-delete (Option 1) vs copy-only (Option 2)
+See DECISIONS_OPEN.md for details.
 
 ## Quick Reference Commands
 
-Run server locally on Steam Deck (note port 8090 - 8080 used by Steam):
+Run server locally on Steam Deck (port 8090):
   cd ~/IndigiSnap/go-backend
   INDIGISNAP_PORT=8090 INDIGISNAP_BASE_DIR=./IndigiSnap go run ./cmd/server
 
-Kill running server (requires .bashrc source):
+Kill running server:
   source ~/.bashrc
   killindigi
 
-Build APK (CI):
+Build APK locally (Steam Deck):
+  cd ~/IndigiSnap
+  ./gradlew assembleDebug
+  adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+Build APK via CI:
   git push
   # wait for Actions, download artifact
 
-Install APK (via ADB):
-  adb install -r app-debug.apk
-
-Watch logs:
+Watch phone logs:
   adb logcat -c
   adb logcat -v threadtime | grep IndigiSnapDebug
-
-Verify Go compiles:
-  cd ~/IndigiSnap/go-backend && go vet ./... && go build ./cmd/server
 
 Copy command output to clipboard:
   cb <command>

@@ -4,15 +4,6 @@ Do not build against these until resolved. When resolved, move the item to the R
 
 ## Open
 
-### File Naming Date Format
-Camera captures name files as: {immediate_folder}_{simplified_date}.{ext}
-Example: Shrine_09-24-26_15-14.jpg
-Date format options:
-- A: MM-DD-YY_HH-MM      -> Shrine_09-24-26_15-14.jpg
-- B: MMDDYY_HHMM         -> Shrine_092426_1514.jpg
-- C: YYYY-MM-DD_HHMM     -> Shrine_2026-09-24_1514.jpg
-Blocks: Batch 4 (CameraX implementation)
-Notes: Rapid-fire shooting may need a counter suffix (_01, _02) for same-second collisions.
 
 ### Share-Target Semantics
 When sharing photos/videos from the phone's gallery to IndigiSnap:
@@ -21,12 +12,6 @@ When sharing photos/videos from the phone's gallery to IndigiSnap:
 Blocks: Batch 3.4 (Share target integration)
 Notes: Option 1 matches the stated ask (remove from camera roll) but has a permission cost. Option 2 is simpler but requires manual cleanup.
 
-### Multi-Snap Review Screen Architecture
-The multi-snap review UI can be:
-- JS view toggle in the main WebView (consistent with existing modals, but state persists across toggles - needs explicit reset)
-- Separate WebView or Activity (state dies with the view, but inconsistent with app architecture)
-Blocks: Batch 4 (CameraX implementation)
-Notes: Either way, per CAMERA_SPEC.md item 1, files write to inbox on capture, not in-memory. So the state that matters is the file list on disk, not the JS array. JS state is a UI concern only.
 
 ## Resolved
 
@@ -70,3 +55,22 @@ Favorites already exist as a JSON-backed star system. A second dimension needs i
 
 ### Config Export/Import
 Storage is on-device, code is on GitHub. Solves migrating to a new phone, a rare event. Deferred.
+
+### File Naming Format (Resolved: MM-DD-YY with counter)
+Date format: {immediate_folder}_{MM-DD-YY}.{ext}
+Example: Shrine_09-24-26.jpg
+Duplicate handling: append _1, _2, _3 for same-day captures
+Date: 2026-09-25
+
+### Multi-Snap Review Architecture (Resolved: single CameraActivity)
+Single Kotlin CameraActivity hosts preview, shutter, and thumbnail strip.
+Review happens in the same activity via tap-to-preview with swipe navigation.
+No separate review screen. Select-to-delete (default is keep).
+Commit moves non-deleted files from inbox to target folder.
+Date: 2026-09-25
+
+### Video Thumbnail Generation (Resolved)
+Spec: hidden .thumbs/ folder, JPEG, 10 percent frame, generated on commit,
+deleted with video, orphan sweep on /browse.
+See CAMERA_SPEC.md Item 9.
+Date: 2026-09-25

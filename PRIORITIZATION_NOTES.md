@@ -65,6 +65,15 @@ Sequencing rationale and batch plan. Numbering matches existing docs; do not int
 - Submits to /upload with current folder context.
 - Verification: button visible, picker opens, files upload
 
+### 2.4b - Upload Filter
+
+- Replace single upload button with choice of:
+  - Upload Images (accept=image/*)
+  - Upload Videos (accept=video/*)
+- Simplest: two buttons in controls bar next to existing upload
+- Alternative: one button opening a small menu
+- Effort: 30 min UI
+
 ### 2.5 - Gallery Viewer Enhancements
 - File: interface.html
 - Pinch-to-zoom, double-tap-zoom
@@ -73,20 +82,59 @@ Sequencing rationale and batch plan. Numbering matches existing docs; do not int
 - Info button -> /image_info/<path> -> formatted panel (human-readable strings)
 - Verification: each individually
 
-### 2.6 - Folder-Level Rotate
-- Backend route: POST /rotate_picture/<path>
-- File: go-backend/internal/handlers/actions.go (add handler)
-- Rotate 90/180/270, rewrite file on disk, use disintegration/imaging
-- UI: rotate button in image viewer or folder tile menu
-- Scope: one route, one button. No batch-rotate.
-- Verification: rotate a photo, verify it persists after refresh
+### 2.6 - Folder-Level Rotate (Backend)
 
-### 2.7 - Set Logo UI
-- New route: POST /set_logo. Accepts multipart file. Saves to BASE_DIR/logo/logo.<ext>.
-- UI: "Set Logo" option in folder-level menu (root folder or global)
-- Opens file picker, submits to /set_logo, redirects back
-- Note: app-private storage means user cannot drop logo via file manager. This is the in-app path.
-- Verification: pick image, header refreshes with new logo. Persist after restart.
+- New route: POST /rotate_picture/<path>
+- Query param: degrees (90, 180, 270)
+- Uses disintegration/imaging (already imported)
+- Read image, rotate, write back to same path
+- Design review REQUIRED before coding:
+  - EXIF orientation interaction (do we normalize tag to 1 after rotation?)
+  - Metadata preservation on write
+  - Whether to write to temp then atomic-rename
+- Effort: 1 hour backend + 30 min UI
+
+### 2.7 - Set Logo UI (Backend)
+
+- New route: POST /set_logo
+- Accepts multipart file upload
+- Validates MIME type and extension
+- Enforces size cap (5 MB)
+- Saves to BASE_DIR/logo/logo.<ext>
+- Removes other logo.* files
+- UI: Set Logo menu item in root folder menu
+- Effort: 30 min backend + 30 min UI
+
+## Video Thumbnail Sub-Batch
+
+### VB.1 - Generation on Commit
+- After video committed from inbox to target folder
+- Generate JPEG thumbnail at {folder}/.thumbs/{basename}.jpg
+- 10 percent frame, low quality
+- Called from camera commit flow (Batch 4.6)
+
+### VB.2 - Delete on Video Delete
+- Extend /delete_picture to also delete .thumbs/{basename}.jpg
+- Extend /batch_delete same
+- Effort: 20 min backend
+
+### VB.3 - Orphan Sweep on /browse
+- Extend CleanOrphanThumbnails in video package
+- Scan .thumbs/ folders, delete thumbs with no matching video
+- Called at start of browse handler
+- Effort: 30 min backend
+
+### VB.4 - Video Tile Renders Thumb
+- Browse handler checks for .thumbs/{basename}.jpg
+- If present, sets ThumbURL to /view/{thumbs_path}
+- If missing, leaves ThumbURL empty (grid shows placeholder)
+- Effort: 20 min backend
+
+### VB.5 - Regen on Demand
+- If .thumbs/{basename}.jpg missing but video exists
+- Spawn background goroutine to generate
+- Next /browse picks it up
+- Effort: 20 min backend
 
 ## Batch 3 - Kotlin Changes (need build to test)
 

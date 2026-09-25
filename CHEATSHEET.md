@@ -44,3 +44,36 @@ Install:
 Alternative (xclip):
     sudo pacman -S xclip
     ./context.sh | xclip -selection clipboard
+
+## Steam Deck Development Environment
+
+### Shell setup (persists across terminals)
+- Java 17 (JAVA_HOME=/usr/lib/jvm/java-17-openjdk)
+- Android SDK (ANDROID_HOME=/home/deck/android-sdk)
+- cb, killindigi functions defined in ~/.bashrc
+
+### Local dev server (port 8090)
+    cd ~/IndigiSnap/go-backend
+    INDIGISNAP_PORT=8090 INDIGISNAP_BASE_DIR=./IndigiSnap go run ./cmd/server
+
+Port 8080 is used by Steam webhelper, so we use 8090 for local dev.
+
+### Kill server
+    source ~/.bashrc
+    killindigi
+
+### Local APK build
+    cd ~/IndigiSnap
+    ./gradlew assembleDebug
+
+### Install on phone
+    adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+### Watch phone logs
+    adb logcat -c
+    adb logcat -v threadtime | grep IndigiSnapDebug
+
+### Android SDK install (first time)
+    sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+    echo "sdk.dir=$HOME/android-sdk" > local.properties
+

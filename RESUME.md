@@ -98,3 +98,53 @@ GitHub: github.com/calvenwilliams1-pixel/IndigiSnap
 3. Ask the user.
 4. Then revise the plan.
 5. Only then edit.
+
+## Steam Deck Development Environment
+
+Local Steam Deck builds are the preferred workflow. No GitHub Actions round trips.
+
+### Shell environment (persists across terminals)
+Set up in ~/.bashrc and /etc/profile.d/:
+- JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+- ANDROID_HOME=/home/deck/android-sdk
+- PATH includes cmdline-tools/latest/bin and platform-tools
+
+### Steam Deck 8080 conflict
+Steam webhelper occupies port 8080. IndigiSnap uses port 8090 for local dev.
+
+### Quick commands
+
+Run Go server locally:
+    cd ~/IndigiSnap/go-backend
+    INDIGISNAP_PORT=8090 INDIGISNAP_BASE_DIR=./IndigiSnap go run ./cmd/server
+
+Kill running Go server:
+    source ~/.bashrc
+    killindigi
+
+Build APK locally:
+    cd ~/IndigiSnap
+    ./gradlew assembleDebug
+
+Install APK on phone (USB):
+    cd ~/IndigiSnap
+    adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+Watch phone logs:
+    adb logcat -c
+    adb logcat -v threadtime | grep IndigiSnapDebug
+
+### .bashrc structure
+- Line 6: non-interactive guard
+- Above the guard: environment exports
+- Below the guard: function definitions (cb, killindigi)
+
+### cb function
+Copies any command output to clipboard while displaying it:
+    cb ls
+    cb go vet ./...
+
+### Android SDK install (if missing)
+    sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653"
+    echo "sdk.dir=$HOME/android-sdk" > local.properties
+
