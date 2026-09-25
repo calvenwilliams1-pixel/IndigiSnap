@@ -1,15 +1,22 @@
 package handlers
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/disintegration/imaging"
+	"github.com/rwcarlsen/goexif/exif"
 
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/meta"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/security"
@@ -324,3 +331,133 @@ func deleteVideoThumbnails(fullPath string) {
 	thumbsDir := filepath.Join(filepath.Dir(fullPath), ".thumbs")
 	_ = os.Remove(filepath.Join(thumbsDir, baseName+".jpg"))
 }
+
+// RotatePicture handles POST /rotate_picture/<path>?degrees=90|180|270.
+//
+// Per decision in DECISIONS_OPEN.md (Rotate + EXIF Interaction):
+//   1. Read existing EXIF orientation.
+//   2. Decode pixels.
+//   3. Apply orientation correction (so image is visually upright).
+//   4. Apply user's requested rotation.
+//   5. Re-encode as JPEG (imaging.Save strips metadata).
+//   6. Write via temp + atomic rename.
+//   7. Delete any stale thumbnails (both namings).
+//
+// After rotation, pixel orientation is the source of truth.
+func (h *ActionHandler) RotatePicture(w http.ResponseWriter, r *http.Request) {
+	raw := strings.TrimPrefix(r.URL.Path, "/rotate_picture/")
+	raw = strings.TrimPrefix(raw, "/")
+	rel, _ := security.ValidatePath(raw)
+
+	degreesStr := r.URL.Query().Get("degrees")
+	degrees, err := strconv.Atoi(degreesStr)
+	if err != nil || (degrees != 90 && degrees != 180 && degrees != 270) {
+		http.Error(w, "degrees must be 90, 180, or 270", 400)
+		return
+	}
+
+	target := filepath.Join(h.BaseDir, security.ToOSPath(rel))
+	if !security.IsSafePath(h.BaseDir, target) {
+		http.Error(w, "Access denied", 403)
+		return
+	}
+	if strings.Contains(target, security.LogoFolder) {
+		http.Error(w, "Cannot rotate logo", 403)
+		return
+	}
+
+	info, err := os.Stat(target)
+	if err != nil || info.IsDir() {
+		http.Error(w, "File not found", 404)
+		return
+	}
+
+	isJpeg := strings.HasSuffix(strings.ToLower(target), ".jpg") || strings.HasSuffix(strings.ToLower(target), ".jpeg")
+
+	var img image.Image
+	if isJpeg {
+		orientation := readExifOrientation(target)
+		src, err := imaging.Open(target, imaging.AutoOrientation(false))
+		if err != nil {
+			http.Error(w, "Cannot decode image: "+err.Error(), 500)
+			return
+		}
+		img = applyExifRotation(src, orientation)
+	} else {
+		src, err := imaging.Open(target)
+		if err != nil {
+			http.Error(w, "Cannot decode image: "+err.Error(), 500)
+			return
+		}
+		img = src
+	}
+
+	switch degrees {
+	case 90:
+		img = imaging.Rotate90(img)
+	case 180:
+		img = imaging.Rotate180(img)
+	case 270:
+		img = imaging.Rotate270(img)
+	}
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
+		http.Error(w, "Cannot encode rotated image: "+err.Error(), 500)
+		return
+	}
+
+	tmpPath := target + ".rotatetmp"
+	if err := os.WriteFile(tmpPath, buf.Bytes(), info.Mode()); err != nil {
+		_ = os.Remove(tmpPath)
+		http.Error(w, "Cannot write temp file: "+err.Error(), 500)
+		return
+	}
+	if err := os.Rename(tmpPath, target); err != nil {
+		_ = os.Remove(tmpPath)
+		http.Error(w, "Cannot finalize rotate: "+err.Error(), 500)
+		return
+	}
+
+	deleteVideoThumbnails(target)
+
+	log.Printf("RotatePicture: %s by %d degrees", target, degrees)
+	w.WriteHeader(204)
+}
+
+// readExifOrientation returns the EXIF orientation tag (1-8), defaulting to 1.
+func readExifOrientation(path string) int {
+	f, err := os.Open(path)
+	if err != nil {
+		return 1
+	}
+	defer f.Close()
+	x, err := exif.Decode(f)
+	if err != nil {
+		return 1
+	}
+	tag, err := x.Get(exif.Orientation)
+	if err != nil {
+		return 1
+	}
+	n, err := tag.Int(0)
+	if err != nil || n < 1 || n > 8 {
+		return 1
+	}
+	return n
+}
+
+// applyExifRotation applies orientation correction to img (same mapping as /view).
+func applyExifRotation(img image.Image, orientation int) image.Image {
+	switch orientation {
+	case 3:
+		return imaging.Rotate180(img)
+	case 6:
+		return imaging.Rotate270(img)
+	case 8:
+		return imaging.Rotate90(img)
+	default:
+		return img
+	}
+}
+

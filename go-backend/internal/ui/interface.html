@@ -249,6 +249,10 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
 <div id="imgViewer" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(5, 2, 10, 0.98); z-index:2000; flex-direction:column; align-items:center; justify-content:center;">
   <div style="width:100%; padding: 20px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
     <button onclick="closeViewer()" style="background:var(--neon); border:2px solid white; padding:15px 30px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">❌ Close</button>
+    <div style="display:flex; gap:10px;">
+      <button onclick="rotateCurrentImage(270)" title="Rotate left" style="background:var(--neon); border:2px solid white; padding:15px 25px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">↺</button>
+      <button onclick="rotateCurrentImage(90)" title="Rotate right" style="background:var(--neon); border:2px solid white; padding:15px 25px; font-size:18px; border-radius:15px; color:white; font-weight:bold; cursor:pointer;">↻</button>
+    </div>
   </div>
   <div style="width:100%; height:75%; display:flex; align-items:center; justify-content:center; position:relative;">
     <button onclick="navigateGallery(-1)" style="position:absolute; left:20px; background:rgba(18, 8, 34, 0.8); border:2px solid var(--psy); color:white; font-size:32px; padding:20px; border-radius:15px; cursor:pointer;">◀</button>
@@ -440,6 +444,28 @@ function navigateGallery(direction) {
 
 function updateViewerSource() {
   document.getElementById('viewerImg').src = '/view/' + currentImagePath + '?t=' + Date.now();
+}
+
+function rotateCurrentImage(degrees) {
+  if (!currentImagePath) return;
+  const btn = event.target;
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  fetch('/rotate_picture/' + currentImagePath + '?degrees=' + degrees, { method: 'POST' })
+    .then(res => {
+      if (res.ok) {
+        // Force reload of the image with cache-bust
+        document.getElementById('viewerImg').src =
+          '/view/' + currentImagePath + '?t=' + Date.now();
+      } else {
+        return res.text().then(t => { throw new Error(t); });
+      }
+    })
+    .catch(err => alert('Rotate failed: ' + err.message))
+    .finally(() => {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+    });
 }
 
 function closeViewer() {

@@ -99,6 +99,13 @@ func buildMux(baseDir string) *http.ServeMux {
 		}
 		actionHandler.SetSort(w, r)
 	})
+	mux.HandleFunc("/rotate_picture/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", 405)
+			return
+		}
+		actionHandler.RotatePicture(w, r)
+	})
 	mux.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", 405)
