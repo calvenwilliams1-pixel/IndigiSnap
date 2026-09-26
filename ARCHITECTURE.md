@@ -1,72 +1,126 @@
-# IndigiSnap - Architecture
+# IndigiSnap — Architecture
 
-Repository layout, file purposes, and runtime constraints.
+Repository layout, file purposes, runtime constraints.
+
+---
 
 ## Repository Root
 
-- PROJECT.md - context prompt for AI assistants
-- TODO.md - live status tracker
-- ARCHITECTURE.md - this file
-- PRODUCTION_PLAN.md - v1 roadmap
-- PRIORITIZATION_NOTES.md - batch plan and sequencing
-- DECISIONS_OPEN.md - unresolved decisions and rationale
-- CAMERA_SPEC.md - camera capture spec
-- RESUME.md - cold-start orientation checklist
-- DEBUG_LOG.md - session debug notes
-- README.md - placeholder
-- MASTER_PROMPT.md - older context file (superseded by PROJECT.md)
-- build.gradle.kts - root Gradle build
-- settings.gradle.kts - project name, modules
-- gradle.properties - JVM args, AndroidX
-- gradlew, gradlew.bat - wrapper scripts
-- local.properties - sdk.dir, gitignored
-- .gitignore - build artifact and local config exclusions
+- MASTER_PROMPT.md — context for AI assistants
+- TODO.md — live status and queued work
+- ARCHITECTURE.md — this file
+- PROJECT.md — original context (superseded by MASTER_PROMPT.md)
+- CAMERA_SPEC.md — camera behavior spec
+- DECISIONS_OPEN.md — resolved and open decisions
+- PRIORITIZATION_NOTES.md — batch plan
+- PRODUCTION_PLAN.md — v1 roadmap
+- RESUME.md — cold-start orientation
+- CHEATSHEET.md — quick commands
+- README.md, DEBUG_LOG.md — historical
+- build.gradle.kts, settings.gradle.kts, gradle.properties
+- gradlew, gradlew.bat, local.properties (gitignored)
+- .gitignore, .devcontainer/, .github/workflows/
 
-## Dev Environment
+---
 
-- .devcontainer/devcontainer.json - Codespaces container spec (Java 17, Go 1.22)
-- .devcontainer/setup.sh - post-create hook, installs Android SDK and NDK
-- .github/workflows/build.yml - CI (builds APK on push)
+## Android Shell — app/
 
-## Android Shell - app/
+### Kotlin files in app/src/main/java/com/indigisnap/app/
 
-- app/build.gradle.kts - app module build config, jniLibs source set
-- app/proguard-rules.pro - ProGuard rules (empty)
-- app/src/main/AndroidManifest.xml - permissions, activity, service declarations
-- app/src/main/java/com/indigisnap/app/MainActivity.kt
-  - WebView host, WebChromeClient for file chooser, JNI loader
-- app/src/main/java/com/indigisnap/app/ServerBridge.kt
-  - JNI bridge: loads libindigisnap.so, external fun StartServer/StopServer
-- app/src/main/java/com/indigisnap/app/ServerService.kt
-  - Foreground service that starts the Go server on app launch
-- app/src/main/jniLibs/arm64-v8a/libindigisnap.so - compiled Go (64-bit)
-- app/src/main/jniLibs/armeabi-v7a/libindigisnap.so - compiled Go (32-bit)
-- app/src/main/res/ - Android resources (icons later)
+**MainActivity.kt**
+- WebView host, splash, permission gate
+- JS bridge (WebAppBridge inner class): openCamera(folder),
+  shareFile(relPath, name), shareFiles(jsonArray)
+- registerForActivityResult for camera launcher and permission
+  launcher
+- Legacy camera path via launchCameraIntent for LEGACY_SINGLE and
+  LEGACY_FALLBACK
+- shouldOverrideUrlLoading with parameterized allowedHosts
+- logOrphanedInboxes on startup
+- TODO: SAF folder picker integration
 
-## Go Backend - go-backend/
+**CameraActivity.kt**
+- Full-screen CameraX preview
+- Top bar: ❌ close, counter, ⚡ flash, 🔄 switch, ✅ done
+- Bottom: shot counter, thumbnail strip, shutter button
+- Review overlay: ❌ close, ✅ commit, ↺ 🗑️ ↻, counter
+- Multi-select mode: long-press entry, checkbox overlays, batch
+  toolbar
+- Pinch + pan + double-tap + swipe gestures
+- attemptClose, commitSession, discardSession
+- onBackPressedCallback routes through attemptClose or
+  closeReviewOverlay
 
-- go-backend/go.mod - module definition
-- go-backend/go.sum - dependency checksums
-- go-backend/IndigiSnap/ - test media folder (gitignored)
-- go-backend/cmd/server/main.go - HTTP server entry, buildMux()
-- go-backend/cmd/server/jni.go - JNI exports for Kotlin
-- go-backend/internal/security/security.go
-  - IsSafePath, ValidatePath, SanitizeFilename, AllowedFile, IsVideoFile, IsHiddenFolder
-- go-backend/internal/meta/meta.go
-  - Folder metadata, favorites, recents, breadcrumbs
-- go-backend/internal/ui/ui.go
-  - TemplateData struct, Render() via html/template
-- go-backend/internal/ui/interface.html
-  - Full app UI (HTML/CSS/JS), embedded via go:embed
-- go-backend/internal/video/video.go
-  - ffprobe and ffmpeg wrappers (no-op if binaries missing)
-- go-backend/internal/handlers/browse.go - /browse, favorites virtual folder, previews
-- go-backend/internal/handlers/view.go - /view/<path>
-- go-backend/internal/handlers/actions.go - create/rename/delete folders, upload, sort, favorite
-- go-backend/internal/handlers/batch.go - batch_delete, batch_move, batch_rename, export_zip
-- go-backend/internal/handlers/browser.go - /folder_browser
-- go-backend/internal/handlers/dupes.go - /find_duplicates
-- go-backend/internal/handlers/info.go - /image_info (STUB until Batch 1.1)
+**CameraController.kt**
+- All CameraX wiring (bind, capture, rotation, warm-up, timeouts)
+- Shot session state (List<SessionShot>)
+- rotateShot (needs verification pass), deleteShots (to be repurposed),
+  toggleShotDeletion, toggleBatchSelection, clearBatchSelection
+- loadOrientedBitmap (to be split into loadThumbnail and
+  loadFullResolution)
+- focusAt (queued), setZoomRatio, updateTargetRotation
+- Diagnostic logging (to be removed after Pass Q)
+
+**SessionState.kt**
+- Parcelable payload between MainActivity and CameraActivity
+- Fields: sessionId, folder, shotCount, lastShotPath, sessionFinished,
+  fallbackUsed, failureReason, cameraStartTimeMs
+
+**SessionShot.kt**
+- Data class for a shot in the current session
+- Fields: file, capturedAt, markedForDeletion, thumbnail,
+  selectedForBatch
+
+**ServerService.kt**
+- Foreground service, starts on app launch
+- Currently hardcodes filesDir/IndigiSnap as base dir
+- To be changed to read from Intent extra
+
+**ServerBridge.kt**
+- JNI loader for libindigisnap.so
+- StartServer(port, baseDir), StopServer()
+
+### Resources
+
+- AndroidManifest.xml — permissions, activities, service, provider
+- res/xml/file_paths.xml — FileProvider paths. Currently covers
+  camera_cache and .inbox. Needs media root entry.
+- res/drawable/ — currently empty. Needs 8 vector icons (queued).
+- res/mipmap-*/ — default Android icons (custom art deferred)
+
+### Native libraries
+
+- jniLibs/arm64-v8a/libindigisnap.so — built by CI or locally via
+  cross-compile with NDK 25.2.9519653
+
+---
+
+## Go Backend — go-backend/
+
+- cmd/server/main.go — entry point, buildMux, routes
+- cmd/server/jni.go — JNI exports: Java_com_indigisnap_app_ServerBridge_StartServer,
+  StopServer
+- internal/security/security.go — path safety, sanitization, file type
+  checks
+- internal/meta/meta.go — FolderMeta, favorites, recents, breadcrumbs,
+  GetLogoPath/GetLogoURL
+- internal/ui/ui.go — TemplateData, Render
+- internal/ui/interface.html — the WebView UI (HTML/CSS/JS)
+- internal/video/video.go — ffprobe/ffmpeg wrappers, CleanOrphanThumbnails
+- internal/handlers/browse.go — /browse (with folder previews,
+  CleanOrphanThumbnails call)
+- internal/handlers/view.go — /view, EXIF orientation, JPEG quality
+  100 (to be 90)
+- internal/handlers/actions.go — create/rename/delete/upload/sort/
+  favorite/rotate
+- internal/handlers/batch.go — batch_delete/batch_move/batch_rename/
+  export_zip
+- internal/handlers/browser.go — /folder_browser
+- internal/handlers/dupes.go — /find_duplicates
+- internal/handlers/info.go — /image_info (real EXIF via goexif)
+- internal/handlers/logo.go — /logo, /set_logo
+
+---
 
 ## Registered HTTP Routes
 
@@ -78,130 +132,115 @@ Repository layout, file purposes, and runtime constraints.
 | GET | /browse/<path> | BrowseHandler | done |
 | GET | /browse/favorites | BrowseHandler (virtual) | done |
 | GET | /view/<path> | ViewHandler | done |
-| GET | /image_info/<path> | InfoHandler | STUB |
+| GET | /image_info/<path> | InfoHandler | done |
 | GET | /folder_browser | BrowserHandler | done |
 | GET | /find_duplicates/<path> | DupesHandler | done |
-| GET | /logo/<path> | - | TODO (Batch 1.3) |
-| GET | /search | - | TODO (Batch 6.3) |
-| POST | /upload | ActionHandler.Upload | done (copies; move is Batch 3.2) |
+| GET | /logo/<path> | LogoHandler | done |
+| POST | /set_logo | LogoHandler | done |
+| POST | /upload | ActionHandler | done |
 | POST | /create_folder/<path> | ActionHandler | done |
 | POST | /rename_folder/<path> | ActionHandler | done |
 | POST | /delete_folder/<path> | ActionHandler | done |
 | POST | /delete_picture/<path> | ActionHandler | done |
 | POST | /toggle_favorite/<path> | ActionHandler | done |
 | POST | /set_sort/<path> | ActionHandler | done |
+| POST | /rotate_picture/<path> | ActionHandler | done |
 | POST | /batch_delete | BatchHandler | done |
 | POST | /batch_move | BatchHandler | done |
 | POST | /batch_rename | BatchHandler | done |
 | POST | /export_zip | BatchHandler | done |
 | POST | /export_folder_zip/<path> | BatchHandler | done |
-| POST | /rotate_picture/<path> | - | TODO (Batch 2.6) |
-| POST | /set_logo | - | TODO (Batch 2.7) |
-| POST | /set_notes/<path> | - | TODO (Batch 6.1) |
 
-## JNI Interface
+---
 
-Go exports:
-- Java_com_indigisnap_app_ServerBridge_StartServer(env, clazz, port, baseDir)
-- Java_com_indigisnap_app_ServerBridge_StopServer(env, clazz)
+## Data On Disk (Current — App Private)
 
-Kotlin declares:
-- external fun StartServer(port: Int, baseDir: String)
-- external fun StopServer()
+Base dir on phone: /data/data/com.indigisnap.app/files/IndigiSnap/
 
-Cross-compile (in CI):
-  NDK=$ANDROID_HOME/ndk/25.2.9519653
-  TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
-  CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC=$TOOLCHAIN/bin/aarch64-linux-android24-clang go build -buildmode=c-shared -o libindigisnap.so ./cmd/server
+- .indigisnap_meta.json — per folder metadata
+- .indigisnap_favorites.json — global favorites
+- .indigisnap_recents.json — recent folders
+- .inbox/<session-id>/IMG_<epoch_ms>_<seq>.jpg — pending camera shots
+- logo/logo.<ext> — custom logo
+- {folder}/{files} — committed media
+- {folder}/.thumbs/<video_basename>.jpg — video thumbnails
 
-## Data On Disk
+Planned (after SAF folder picker):
+- /sdcard/Pictures/IndigiSnap/ (user-chosen or default)
 
-Per-folder metadata: .indigisnap_meta.json
-  Fields: thumb, active_prefix, history, sort, theme, previews, created_at, updated_at, hide_from_app, notes (added in Batch 6.1)
-
-Global favorites: .indigisnap_favorites.json
-  JSON array of relative paths
-
-Global recents: .indigisnap_recents.json (added in Batch 1.4)
-  JSON array of { name, path }
-
-Base directory (dev): /home/deck/IndigiSnap/go-backend/IndigiSnap/
-Base directory (phone): /data/data/com.indigisnap.app/files/IndigiSnap/
-
-## Environment Variables
-
-- INDIGISNAP_PORT default 8080
-- INDIGISNAP_BASE_DIR default ./IndigiSnap
+---
 
 ## Runtime Constraints
 
-Non-obvious facts that trip up future changes.
-
 ### Single WebView
-The app hosts exactly ONE WebView (in MainActivity.kt), loading
-http://127.0.0.1:8080/browse and never navigating away. All "screens"
-(modals, viewers, panels) are JS view toggles over the same DOM.
+The app hosts one WebView in MainActivity. All browse-page "screens"
+(viewer, modals, panels) are JS view toggles over the same DOM.
 
-Consequences:
-- JS state survives view transitions; nothing is freed by closing a panel
-- Temporary collections (pendingSnaps, selection arrays) need explicit
-  reset on discard/cancel - see DECISIONS_OPEN.md multi-snap note
-- Every "screen" is CSS display toggling, not a page load
+### Back button
+MainActivity onBackPressed routes through attemptClose (camera) or
+closeReviewOverlay. CameraActivity uses OnBackPressedCallback.
 
-### Back button behavior
-MainActivity overrides onBackPressed: WebView back if history exists,
-otherwise exit. NOTE: JS-only view changes (modals, viewers) do not
-create history entries, so back does NOT close them. Modals must
-provide their own close button. Modal-dismiss-via-back would need
-JS bridge work - not yet implemented.
+### Loopback server
+Go server binds 127.0.0.1 only.
 
-### Loopback-only server
-Go server binds 127.0.0.1 only, not exposed to the network.
+### App-private storage
+Currently filesDir/IndigiSnap. SAF folder picker to move to
+/sdcard/Pictures/IndigiSnap.
 
-### App-private storage only
-Everything under filesDir/IndigiSnap - invisible to camera roll and
-other apps. No runtime storage permissions needed for the app's own
-folder. Shared storage migration is deferred (see DECISIONS_OPEN.md).
+### JNI boundary
+Go called via libindigisnap.so. Two exports: StartServer, StopServer.
+Cross-compiled by GitHub Actions or locally with NDK.
 
-### JNI boundary is hard
-Go is called through libindigisnap.so with two entry points only
-(StartServer, StopServer). New Kotlin to Go calls need new exports on
-both sides - do not assume more surface exists.
+### Camera flow
+- Photos: CameraActivity + CameraController, multi-shot session
+- Video: MediaStore.ACTION_VIDEO_CAPTURE via MainActivity
+- Fallback: if CameraX fails, MainActivity uses legacy system camera
 
-### Cross-compilation is CI-only
-The Android .so is built by GitHub Actions. Local go run uses host
-architecture - behavior can differ (paths, syscalls). Test in CI when
-unsure.
+### Threading rules
+- All UI state mutations post to main handler
+- Bitmap decode on camera executor
+- Rotation post-processing on camera executor
+- Every disk write verified before use
 
-### Inbox folder (pending, Batch 4)
-Multi-snap camera captures write to filesDir/IndigiSnap/.inbox/<session-id>/
-on capture, written by Kotlin directly. JS holds only filenames. Discard
-deletes the folder; commit moves files to destination folder. See
-CAMERA_SPEC.md items 1 and 5.
+---
 
 ## Build And Run
 
-### Local in Codespaces or Steam Deck
-  cd go-backend
-  INDIGISNAP_BASE_DIR=./IndigiSnap go run ./cmd/server
-  Open http://127.0.0.1:8080/browse
+### Local Go server (Steam Deck, port 8090):
+cd ~/IndigiSnap/go-backend
+INDIGISNAP_PORT=8090 INDIGISNAP_BASE_DIR=./IndigiSnap go run ./cmd/server
 
-### APK build (CI)
-  Triggered by push to main, or manual dispatch
-  Artifact: indigisnap-debug
+### Local APK build:
+cd ~/IndigiSnap
+./gradlew assembleDebug
 
-### Install on phone
-  adb install -r app-debug.apk
+### Install:
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 
-### Logcat debug
-  adb logcat -c
-  adb logcat -v threadtime | grep IndigiSnapDebug
+### Watch logs:
+adb logcat -c
+adb logcat -v threadtime | grep -iE "IndigiSnap|chromium"
+
+### Cross-compile Go for Android ARM64:
+cd ~/IndigiSnap
+NDK=$ANDROID_HOME/ndk/25.2.9519653
+TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+cd go-backend
+CGO_ENABLED=1 GOOS=android GOARCH=arm64 \
+  CC=$TOOLCHAIN/bin/aarch64-linux-android24-clang \
+  go build -buildmode=c-shared \
+  -o ../app/src/main/jniLibs/arm64-v8a/libindigisnap.so ./cmd/server
+
+---
 
 ## Key Constraints
 
 - Server binds 127.0.0.1 only
 - All paths validated against BaseDir
-- Hidden folders excluded from UI and protected from deletion
-- App-private storage
-- No ffmpeg dependency - video helpers no-op gracefully
-- ARM64 + ARMv7 only (no x86_64 in release)
+- Hidden folders (dot prefix, logo) excluded
+- App-private storage for now
+- ARM64 + ARMv7 only
+- No continuous animations (battery/GPU)
+- Every disk write verified
+- Sampled decode for thumbnails
+- One build per pass, no mixed correctness + styling
