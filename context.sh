@@ -1,11 +1,15 @@
 #!/bin/bash
-# context.sh - dump all IndigiSnap docs to clipboard
-# Usage: ./context.sh
+# context.sh - dump all IndigiSnap docs
+# Usage:
+#   ./context.sh            auto-copy bundle to clipboard
+#   ./context.sh --stdout   print bundle to stdout instead
 
 set -euo pipefail
 cd "$(dirname "$0")"
 
-{
+MODE="${1:-clipboard}"
+
+generate() {
   echo "=== IndigiSnap Context Bundle ==="
   echo "Repo: github.com/calvenwilliams1-pixel/IndigiSnap"
   echo "Local: $(pwd)"
@@ -23,6 +27,14 @@ cd "$(dirname "$0")"
   done
 
   echo "=== End of Context Bundle ==="
-} | wl-copy
+}
 
-echo "Context bundle copied to clipboard ($(git ls-files '*.md' | wc -l) files)."
+case "$MODE" in
+  --stdout|--print|-p)
+    generate
+    ;;
+  clipboard|*)
+    generate | wl-copy
+    echo "Context bundle copied to clipboard ($(git ls-files '*.md' | wc -l) files)."
+    ;;
+esac
