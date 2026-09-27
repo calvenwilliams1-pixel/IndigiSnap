@@ -526,15 +526,19 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         val spacer = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
         }
-        val deleteBtn = makeOverlayButton("\uD83D\uDDD1\uFE0F Delete").apply {
-            setOnClickListener { confirmBatchDelete() }
+        val markBtn = makeOverlayButton("\uD83D\uDDD1\uFE0F Mark").apply {
+            setOnClickListener { confirmBatchMark() }
+        }
+        val commitBtn = makeOverlayButton("\u2705 Commit Selected").apply {
+            setOnClickListener { confirmCommitSelected() }
         }
         val cancelBtn = makeOverlayButton("\u2715 Cancel").apply {
             setOnClickListener { exitBatchSelectMode() }
         }
         bar.addView(countLabel)
         bar.addView(spacer)
-        bar.addView(deleteBtn)
+        bar.addView(markBtn)
+        bar.addView(commitBtn)
         bar.addView(cancelBtn)
         rootLayout.addView(bar)
     }
@@ -551,7 +555,7 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         label.text = count.toString() + " selected"
     }
 
-    private fun confirmBatchDelete() {
+    private fun confirmBatchMark() {
         val ctrl = controller ?: return
         val shots = ctrl.shotsSnapshot()
         val selectedIndices = shots.indices.filter { shots[it].selectedForBatch }.toSet()
@@ -559,12 +563,34 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             Toast.makeText(this, "Nothing selected", Toast.LENGTH_SHORT).show()
             return
         }
+        // Check if every selected shot is already marked for deletion.
+        // If so, unmark. Otherwise, mark all. Matches the batch-favorite
+        // toggle pattern described in MASTER_PROMPT decisions.
+        val allMarked = selectedIndices.all { shots[it].markedForDeletion }
+        ctrl.markShotsDeleted(selectedIndices, !allMarked)
+        exitBatchSelectMode()
+    }
+
+    private fun confirmCommitSelected() {
+        val ctrl = controller ?: return
+        val shots = ctrl.shotsSnapshot()
+        val selectedIndices = shots.indices.filter { shots[it].selectedForBatch }.toSet()
+        if (selectedIndices.isEmpty()) {
+            Toast.makeText(this, "Nothing selected", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val toKeep = selectedIndices.size
+        val toDiscard = shots.size - toKeep
+        val msg = if (toDiscard > 0) {
+            "Keep $toKeep selected shot(s)? $toDiscard unselected will be discarded."
+        } else {
+            "Keep all $toKeep shot(s) and commit?"
+        }
         AlertDialog.Builder(this)
-            .setTitle("Delete selected?")
-            .setMessage("Delete " + selectedIndices.size + " shot(s)? This cannot be undone.")
-            .setPositiveButton("Delete") { _, _ ->
-                ctrl.deleteShots(selectedIndices)
-                exitBatchSelectMode()
+            .setTitle("Commit selected")
+            .setMessage(msg)
+            .setPositiveButton("Commit") { _, _ ->
+                commitSession(keepSelected = true)
             }
             .setNegativeButton("Cancel") { _, _ -> }
             .setCancelable(false)
@@ -822,11 +848,11 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         val shot = shots[reviewIndex]
 
         try {
-            val bmp = ctrl.loadOrientedBitmap(shot.file)
+            val bmp = ctrl.loadFullResolution(shot.file)
             if (bmp != null) {
                 reviewImageView?.setImageBitmap(bmp)
             } else {
-                Log.w(TAG, "updateReviewDisplay: loadOrientedBitmap returned null")
+                Log.w(TAG, "updateReviewDisplay: loadFullResolution returned null")
             }
         } catch (e: Exception) {
             Log.w(TAG, "decode review failed: " + e.message)
@@ -1012,10 +1038,16 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             .show()
     }
 
-    private fun commitSession() {
+    private fun commitSession(keepSelected: Boolean = false) {
         val ctrl = controller ?: return
         val shots = ctrl.shotsSnapshot()
-        val keptShots = shots.filter { !it.markedForDeletion }
+        // keepSelected=false (normal done) -> keep everything not marked for deletion
+        // keepSelected=true  (commit selected) -> keep only selectedForBatch items
+        val keptShots = if (keepSelected) {
+            shots.filter { it.selectedForBatch }
+        } else {
+            shots.filter { !it.markedForDeletion }
+        }
 
         // Destination folder
         val baseDir = filesDir

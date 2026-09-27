@@ -215,6 +215,27 @@ class CameraController(
         }
     }
 
+    /**
+     * Batch version of toggleShotDeletion. Sets markedForDeletion on every
+     * shot in [indices] to [marked]. Reversible, same as individual delete.
+     * Used by the multi-select batch toolbar.
+     */
+    fun markShotsDeleted(indices: Set<Int>, marked: Boolean) {
+        mainHandler.post {
+            if (indices.isEmpty()) return@post
+            var changed = false
+            for (i in indices) {
+                if (i !in shots.indices) continue
+                val old = shots[i]
+                if (old.markedForDeletion != marked) {
+                    shots[i] = old.copy(markedForDeletion = marked)
+                    changed = true
+                }
+            }
+            if (changed) listener.onShotsChanged(shots.toList())
+        }
+    }
+
     fun switchCamera() {
         mainHandler.post {
             val provider = cameraProvider ?: return@post
@@ -262,7 +283,7 @@ class CameraController(
             try {
                 // 1. Decode with EXIF orientation applied, so we rotate the
                 //    pixels as the user currently sees them.
-                val bmp = loadOrientedBitmap(original)
+                val bmp = loadFullResolution(original)
                     ?: throw IllegalStateException("decode returned null")
 
                 // 2. Apply rotation
@@ -322,10 +343,12 @@ class CameraController(
 
     /**
      * Deletes a set of shots from the session (files + list entries).
-     * Used by multi-select batch delete.
+     * Internal cleanup only. User-facing delete goes through
+     * toggleShotDeletion (mark) or markShotsDeleted (batch mark),
+     * which are both reversible.
      * Must be called from the main thread.
      */
-    fun deleteShots(indices: Set<Int>) {
+    private fun removeShotsInternal(indices: Set<Int>) {
         mainHandler.post {
             if (indices.isEmpty()) return@post
             // Sort descending so removals do not shift indices
@@ -384,15 +407,80 @@ class CameraController(
     }
 
     /**
-     * Decodes a file into a Bitmap with EXIF orientation applied.
-     * Used for thumbnails and preview so the displayed image matches
-     * what the camera sensor captured (not the raw pixel layout).
+     * Decodes a full-resolution Bitmap with EXIF orientation applied.
+     * Used by the review overlay for fullscreen display. Callers must
+     * not hold references to multiple full-size bitmaps concurrently.
      *
      * Public so CameraActivity can use it for full-size review display.
      */
-    fun loadOrientedBitmap(file: File): Bitmap? {
+    fun loadFullResolution(file: File): Bitmap? {
         return try {
             val raw = BitmapFactory.decodeFile(file.absolutePath) ?: return null
+            applyExifOrientation(file, raw)
+        } catch (e: Exception) {
+            Log.w(TAG, "loadFullResolution failed: " + e.message)
+            null
+        }
+    }
+
+    /**
+     * Decodes a sampled-down Bitmap with EXIF orientation applied.
+     *
+     * Uses BitmapFactory.Options.inSampleSize to decode at roughly 2x the
+     * requested target size, then scales down to fit. Memory usage is
+     * bounded by targetSize rather than by the source image dimensions.
+     *
+     * Use this for thumbnails and any list/grid display. Do not use
+     * loadFullResolution for lists.
+     */
+    fun loadThumbnail(file: File, targetSizePx: Int): Bitmap? {
+        return try {
+            // Pass 1: bounds only, no pixel allocation
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+            // Compute inSampleSize: largest power of 2 such that the
+            // decoded dimensions are still >= 2x target. This lets the
+            // final scale-down be a clean division and avoids decoding
+            // more pixels than needed.
+            val target = (targetSizePx * 2).coerceAtLeast(1)
+            var sample = 1
+            while ((bounds.outWidth / (sample * 2)) >= target &&
+                   (bounds.outHeight / (sample * 2)) >= target) {
+                sample *= 2
+            }
+
+            // Pass 2: decode with inSampleSize
+            val opts = BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            val raw = BitmapFactory.decodeFile(file.absolutePath, opts) ?: return null
+
+            // Apply EXIF orientation
+            val oriented = applyExifOrientation(file, raw) ?: return null
+
+            // Final scale to exact target bound (long edge)
+            val maxDim = maxOf(oriented.width, oriented.height).coerceAtLeast(1)
+            if (maxDim <= targetSizePx) return oriented
+            val scale = maxDim.toFloat() / targetSizePx.toFloat()
+            val newW = (oriented.width / scale).toInt().coerceAtLeast(1)
+            val newH = (oriented.height / scale).toInt().coerceAtLeast(1)
+            Bitmap.createScaledBitmap(oriented, newW, newH, true)
+        } catch (e: Exception) {
+            Log.w(TAG, "loadThumbnail failed: " + e.message)
+            null
+        }
+    }
+
+    /**
+     * Applies EXIF orientation to a decoded bitmap. Returns the input
+     * bitmap if orientation is NORMAL or the tag is missing/unknown.
+     * Returns null if the orientation matrix application fails.
+     */
+    private fun applyExifOrientation(file: File, raw: Bitmap): Bitmap? {
+        return try {
             val exif = androidx.exifinterface.media.ExifInterface(file.absolutePath)
             val orientation = exif.getAttributeInt(
                 androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
@@ -424,7 +512,7 @@ class CameraController(
             }
             Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
         } catch (e: Exception) {
-            Log.w(TAG, "loadOrientedBitmap failed: " + e.message)
+            Log.w(TAG, "applyExifOrientation failed: " + e.message)
             null
         }
     }
@@ -630,20 +718,10 @@ class CameraController(
     }
 
     private fun generateThumbnail(file: File): Bitmap? {
-        return try {
-            // Decode with EXIF orientation applied so thumbnails match
-            // the visual orientation of the captured image.
-            val oriented = loadOrientedBitmap(file) ?: return null
-            val maxDim = maxOf(oriented.width, oriented.height).coerceAtLeast(1)
-            val scale = maxDim / THUMBNAIL_SIZE_PX
-            if (scale <= 1) return oriented
-            val newW = oriented.width / scale
-            val newH = oriented.height / scale
-            Bitmap.createScaledBitmap(oriented, newW, newH, true)
-        } catch (e: Exception) {
-            Log.w(TAG, "generateThumbnail failed: " + e.message)
-            null
-        }
+        // loadThumbnail already applies EXIF orientation and downscales
+        // to THUMBNAIL_SIZE_PX. Memory bounded by target size regardless
+        // of source resolution.
+        return loadThumbnail(file, THUMBNAIL_SIZE_PX)
     }
 
     private fun cleanupFailedFile(file: File) {
