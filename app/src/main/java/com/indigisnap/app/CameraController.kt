@@ -256,25 +256,66 @@ class CameraController(
                 return@post
             }
             val shot = shots[index]
+            val original = shot.file
+            val temp = File(original.parentFile, original.name + ".rotatetmp")
+
             try {
-                val bmp = BitmapFactory.decodeFile(shot.file.absolutePath)
+                // 1. Decode with EXIF orientation applied, so we rotate the
+                //    pixels as the user currently sees them.
+                val bmp = loadOrientedBitmap(original)
                     ?: throw IllegalStateException("decode returned null")
+
+                // 2. Apply rotation
                 val matrix = Matrix()
                 matrix.postRotate(degrees.toFloat())
                 val rotated = Bitmap.createBitmap(
                     bmp, 0, 0, bmp.width, bmp.height, matrix, true
                 )
-                // Write back to disk
-                java.io.FileOutputStream(shot.file).use { out ->
-                    rotated.compress(Bitmap.CompressFormat.JPEG, 95, out)
+
+                // 3. Encode to temp file. compress() strips EXIF, so the
+                //    saved file has NORMAL orientation implicitly.
+                java.io.FileOutputStream(temp).use { out ->
+                    val ok = rotated.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                    if (!ok) throw IllegalStateException("compress returned false")
                 }
-                // Regenerate thumbnail from rotated file
-                val newThumb = generateThumbnail(shot.file)
+
+                // 4. Verify temp file: exists, non-empty, decodable.
+                if (!temp.exists()) throw IllegalStateException("temp missing after write")
+                if (temp.length() <= 0L) throw IllegalStateException("temp is zero bytes")
+                val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(temp.absolutePath, opts)
+                if (opts.outWidth <= 0 || opts.outHeight <= 0) {
+                    throw IllegalStateException("temp not decodable (w=${opts.outWidth} h=${opts.outHeight})")
+                }
+
+                // 5. Atomic swap: delete original, rename temp -> original.
+                if (!original.delete()) {
+                    throw IllegalStateException("failed to delete original")
+                }
+                if (!temp.renameTo(original)) {
+                    throw IllegalStateException("rename temp -> original failed")
+                }
+                if (!original.exists()) {
+                    throw IllegalStateException("original missing after rename")
+                }
+
+                // 6. Regenerate thumbnail from the swapped-in file.
+                val newThumb = generateThumbnail(original)
                 shots[index] = shot.copy(thumbnail = newThumb)
                 listener.onShotsChanged(shots.toList())
-                Log.i(TAG, "rotateShot: index=$index degrees=$degrees file=" + shot.file.name)
+                Log.i(TAG, "rotateShot: index=$index degrees=$degrees file=" + original.name)
+
             } catch (e: Exception) {
                 Log.e(TAG, "rotateShot failed: " + e.message, e)
+                // Clean up temp on any failure. Original remains untouched
+                // unless we got past step 5 partially, in which case the
+                // exception message names the exact failure point.
+                try {
+                    if (temp.exists()) temp.delete()
+                } catch (cleanupEx: Exception) {
+                    Log.w(TAG, "rotateShot cleanup failed: " + cleanupEx.message)
+                }
+                listener.onShotFailed("RotateFailed: " + e.message)
             }
         }
     }
