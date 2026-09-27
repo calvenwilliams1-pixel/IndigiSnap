@@ -287,7 +287,11 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             setBackgroundColor(Color.parseColor("#99000000"))
             setTextColor(Color.WHITE)
             alpha = 0.9f
-            setPadding(dpToPx(16), dpToPx(10), dpToPx(16), dpToPx(10))
+            setPadding(dpToPx(6), dpToPx(8), dpToPx(6), dpToPx(8))
+            minWidth = 0
+            minimumWidth = 0
+            minHeight = 0
+            minimumHeight = 0
         }
     }
 
