@@ -9,6 +9,7 @@ import android.hardware.camera2.CameraManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.util.Size
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -45,6 +46,7 @@ class CameraController(
     private val sessionId: String,
     private val inboxDir: File,
     private val listener: Listener,
+    initialPreset: CapturePreset = CapturePreset.DEFAULT,
 ) {
 
     interface Listener {
@@ -87,6 +89,7 @@ class CameraController(
     // Camera state
     private var currentLensFacing = CameraSelector.LENS_FACING_BACK
     private var currentFlashMode = ImageCapture.FLASH_MODE_OFF
+    private var currentPreset: CapturePreset = initialPreset
 
     // Session state
     private val shots = mutableListOf<SessionShot>()
@@ -425,6 +428,36 @@ class CameraController(
         return Pair(min, max)
     }
 
+    /**
+     * Returns the current capture preset. Used by the Activity to render
+     * the preset picker with the correct selection highlighted.
+     */
+    fun currentPreset(): CapturePreset = currentPreset
+
+    /**
+     * Changes the capture preset and rebinds the ImageCapture use case.
+     *
+     * Rebind is required because JPEG quality and target resolution are
+     * builder-time configuration on ImageCapture (CameraX 1.3.x does not
+     * support changing them at runtime on a live use case).
+     *
+     * Preview blink during rebind (~100-200ms) is expected and acceptable
+     * for a user-initiated settings change.
+     */
+    fun setPreset(preset: CapturePreset) {
+        mainHandler.post {
+            if (preset == currentPreset) return@post
+            currentPreset = preset
+            val provider = cameraProvider ?: return@post
+            try {
+                bindUseCases(provider, currentLensFacing)
+                Log.i(TAG, "setPreset: " + preset.key)
+            } catch (e: Exception) {
+                Log.e(TAG, "setPreset rebind failed: " + e.message, e)
+            }
+        }
+    }
+
     // ---------------------------------------------------------------
     // Internal
     // ---------------------------------------------------------------
@@ -451,6 +484,25 @@ class CameraController(
         }
     }
 
+    /**
+     * Builds an ImageCapture use case configured from the current preset.
+     * Flash mode is preserved across preset changes.
+     */
+    private fun buildImageCapture(): ImageCapture {
+        val builder = ImageCapture.Builder()
+            .setCaptureMode(currentPreset.captureMode)
+            .setJpegQuality(currentPreset.jpegQuality)
+            .setFlashMode(currentFlashMode)
+
+        // Using deprecated target resolution as a simple upper-bound cap.
+        // Can be migrated to ResolutionSelector in a future CameraX upgrade.
+        currentPreset.targetResolution?.let { size ->
+            builder.setTargetResolution(size)
+        }
+
+        return builder.build()
+    }
+
     private fun bindUseCases(provider: ProcessCameraProvider, lensFacing: Int) {
         try {
             provider.unbindAll()
@@ -459,39 +511,7 @@ class CameraController(
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
 
-            val capture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                .setFlashMode(currentFlashMode)
-                .build()
-
-            // ---- DIAGNOSTIC: enumerate CameraX capabilities ----
-            try {
-                val captureMethods = capture.javaClass.methods
-                    .map { it.name }
-                    .filter { it.contains("quality", ignoreCase = true) ||
-                              it.contains("jpeg", ignoreCase = true) ||
-                              it.contains("compress", ignoreCase = true) }
-                    .distinct()
-                    .sorted()
-                Log.i(TAG, "ImageCapture quality-related methods: " + captureMethods.joinToString(", "))
-
-                val builderMethods = ImageCapture.Builder::class.java.methods
-                    .map { it.name }
-                    .distinct()
-                    .sorted()
-                Log.i(TAG, "ImageCapture.Builder methods: " + builderMethods.joinToString(", "))
-
-                val allCaptureMethods = capture.javaClass.methods
-                    .map { it.name }
-                    .distinct()
-                    .sorted()
-                Log.i(TAG, "ImageCapture all methods: " + allCaptureMethods.joinToString(", "))
-
-                // CameraX version logged from gradle config instead
-            } catch (e: Exception) {
-                Log.w(TAG, "CameraX diagnostic failed: " + e.message)
-            }
-            // ---- END DIAGNOSTIC ----
+            val capture = buildImageCapture()
 
             val selector = CameraSelector.Builder()
                 .requireLensFacing(lensFacing)

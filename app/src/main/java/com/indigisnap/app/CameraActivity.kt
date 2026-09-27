@@ -70,6 +70,7 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
     private lateinit var doneButton: Button
     private lateinit var flashButton: Button
     private lateinit var switchButton: Button
+    private lateinit var presetButton: Button
     private lateinit var shotCountLabel: TextView
     private lateinit var thumbnailStrip: LinearLayout
     private lateinit var thumbnailScroll: HorizontalScrollView
@@ -97,6 +98,10 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         setupFullscreenWindow()
         buildLayout()
 
+        val prefs = getSharedPreferences(CapturePreset.PREFS_FILE, MODE_PRIVATE)
+        val initialPreset = CapturePreset.fromKey(prefs.getString(CapturePreset.PREFS_KEY, null))
+        Log.i(TAG, "initial preset: " + initialPreset.key)
+
         controller = CameraController(
             context = this,
             lifecycleOwner = this,
@@ -104,6 +109,7 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             sessionId = sessionId,
             inboxDir = inboxDir,
             listener = this,
+            initialPreset = initialPreset,
         ).also { it.start() }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -202,12 +208,16 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         switchButton = makeOverlayButton("\uD83D\uDD04").apply {
             setOnClickListener { controller?.switchCamera() }
         }
+        presetButton = makeOverlayButton("\u22EE").apply {
+            setOnClickListener { showPresetPicker() }
+        }
         doneButton = makeOverlayButton("\u2705").apply {
             visibility = View.GONE
             setOnClickListener { confirmCommit() }
         }
         rightGroup.addView(flashButton)
         rightGroup.addView(switchButton)
+        rightGroup.addView(presetButton)
         rightGroup.addView(doneButton)
 
         rootLayout.addView(rightGroup, FrameLayout.LayoutParams(
@@ -279,6 +289,29 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             alpha = 0.9f
             setPadding(dpToPx(16), dpToPx(10), dpToPx(16), dpToPx(10))
         }
+    }
+
+    private fun showPresetPicker() {
+        val ctrl = controller ?: return
+        val current = ctrl.currentPreset()
+
+        val labels = CapturePreset.entries.map { it.displayName }.toTypedArray()
+        val checked = CapturePreset.entries.indexOf(current)
+
+        AlertDialog.Builder(this)
+            .setTitle("Capture preset")
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                val chosen = CapturePreset.entries[which]
+                getSharedPreferences(CapturePreset.PREFS_FILE, MODE_PRIVATE)
+                    .edit()
+                    .putString(CapturePreset.PREFS_KEY, chosen.key)
+                    .apply()
+                ctrl.setPreset(chosen)
+                Log.i(TAG, "preset changed: " + chosen.key)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel") { _, _ -> }
+            .show()
     }
 
     private fun makeShutterButton(): View {
