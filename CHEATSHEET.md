@@ -7,13 +7,13 @@ Primary (fast, needs AI URL fetch):
     Paste into chat.
 
 Fallback (works always, big paste):
-    cd /home/deck/IndigiSnap && ./context.sh | wl-copy
-    Paste into chat.
+    cd /home/deck/IndigiSnap && ./context.sh
+    Clipboard is loaded automatically. Paste into chat.
 
 ## Just Print To Terminal
 
     cd /home/deck/IndigiSnap && ./urls.sh
-    cd /home/deck/IndigiSnap && ./context.sh
+    cd /home/deck/IndigiSnap && ./context.sh --stdout
 
 ## When The AI Asks What To Do Next
 
@@ -32,7 +32,8 @@ Paste this after the context bundle:
 ## Script Locations
 
     /home/deck/IndigiSnap/urls.sh    -- print raw URLs
-    /home/deck/IndigiSnap/context.sh -- print all docs
+    /home/deck/IndigiSnap/context.sh -- auto-copies all tracked *.md docs to clipboard
+                                       (--stdout to print instead)
 
 ## If wl-copy Is Missing
 
@@ -43,7 +44,7 @@ Install:
 
 Alternative (xclip):
     sudo pacman -S xclip
-    ./context.sh | xclip -selection clipboard
+    ./context.sh --stdout | xclip -selection clipboard
 
 ## Steam Deck Development Environment
 
