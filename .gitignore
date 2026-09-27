@@ -19,3 +19,7 @@ go-backend/IndigiSnap/
 
 # Go build output
 go-backend/server
+
+# Native libraries (built by CI or cross-compiled locally)
+app/src/main/jniLibs/*/*.so
+app/src/main/jniLibs/*/*.h
