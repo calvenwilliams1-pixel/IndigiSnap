@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"log"
-	"mime"
 	"net/http"
 	"os"
 	"path/filepath"

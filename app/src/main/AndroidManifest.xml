@@ -30,6 +30,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".CameraActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
         <service
             android:name=".ServerService"
             android:exported="false"

@@ -269,7 +269,7 @@ h3 { font-size: 28px; color: var(--psy); margin: 40px 0 20px 0; text-shadow: 0 0
 
 <button onclick="document.getElementById('modal').style.display='block'" class="fab" style="bottom:40px; left:50px; font-size:32px;">＋</button>
 
-<button onclick="document.getElementById('photoInput').click()" class="fab" style="bottom:40px; right:120px; font-size:28px; box-shadow: 0 0 35px rgba(0,255,153,0.5);">📷</button>
+<button onclick="openNativeCamera()" class="fab" style="bottom:40px; right:120px; font-size:28px; box-shadow: 0 0 35px rgba(0,255,153,0.5);">📷</button>
 
 <button onclick="document.getElementById('videoInput').click()" class="fab" style="bottom:40px; right:50px; font-size:28px; box-shadow: 0 0 35px rgba(255,0,153,0.5);">🎬</button>
 
@@ -338,6 +338,23 @@ const galleryImages = [
 {{ range $i, $img := .Images }}{{ if not $img.IsVideo }}{{ if $i }},{{ end }}"{{ $img.RelPath }}"{{ end }}{{ end }}
 ];
 let currentGalleryIndex = 0;
+
+function openNativeCamera() {
+  console.log("openNativeCamera: window.Android =", typeof window.Android);
+  console.log("openNativeCamera: window.Android.openCamera =", typeof (window.Android && window.Android.openCamera));
+  if (window.Android && window.Android.openCamera) {
+    try {
+      window.Android.openCamera("{{ .Folder }}");
+      console.log("openNativeCamera: bridge called successfully");
+    } catch (e) {
+      console.error("openNativeCamera: bridge threw:", e);
+      document.getElementById('photoInput').click();
+    }
+  } else {
+    console.warn("Native camera bridge not available, falling back to web file input");
+    document.getElementById('photoInput').click();
+  }
+}
 
 function openImageUploadPicker() {
   document.getElementById('fileInputImages').click();

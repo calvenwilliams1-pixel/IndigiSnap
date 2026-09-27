@@ -201,7 +201,9 @@ func (h *ActionHandler) ToggleFavorite(w http.ResponseWriter, r *http.Request) {
 // Upload handles POST /upload — accepts multipart form data with
 // one or more files and a "folder" field indicating the destination.
 func (h *ActionHandler) Upload(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(50 << 20); err != nil {
+	// High maxMemory to avoid spooling to /data/local/tmp (not writable
+	// by the app process on Android). 500 MB is well beyond any phone video.
+	if err := r.ParseMultipartForm(500 << 20); err != nil {
 		http.Error(w, "Cannot parse upload: "+err.Error(), 400)
 		return
 	}
