@@ -1,20 +1,9 @@
 #!/bin/bash
-# context.sh - dump all IndigiSnap docs to clipboard (silent)
+# context.sh - dump all IndigiSnap docs to clipboard
 # Usage: ./context.sh
 
-set -e
+set -euo pipefail
 cd "$(dirname "$0")"
-
-FILES=(
-  RESUME.md
-  PROJECT.md
-  TODO.md
-  DECISIONS_OPEN.md
-  ARCHITECTURE.md
-  PRIORITIZATION_NOTES.md
-  PRODUCTION_PLAN.md
-  CAMERA_SPEC.md
-)
 
 {
   echo "=== IndigiSnap Context Bundle ==="
@@ -25,15 +14,15 @@ FILES=(
   echo "Paste everything below into a fresh AI chat to restore full context."
   echo ""
 
-  for f in "${FILES[@]}"; do
-    if [ -f "$f" ]; then
-      echo "==============================================================="
-      echo "FILE: $f"
-      echo "==============================================================="
-      cat "$f"
-      echo ""
-    fi
+  git ls-files '*.md' | sort | while read -r f; do
+    echo "==============================================================="
+    echo "FILE: $f"
+    echo "==============================================================="
+    cat "$f"
+    echo ""
   done
 
   echo "=== End of Context Bundle ==="
 } | wl-copy
+
+echo "Context bundle copied to clipboard ($(git ls-files '*.md' | wc -l) files)."
