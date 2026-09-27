@@ -30,19 +30,27 @@ Legend: [x] done · [~] in progress · [ ] not started · [!] blocked
 - Grep call sites of deleteShots before changing contract
 - Refactor to one underlying commit function
 
-### Pass Q — Capture Presets [ ]
-- Renamed from "Quality + Resolution Picker"
+### Pass Q — Capture Presets [~] built, awaiting field test
 - Four presets: Highest Quality, Balanced (default), Storage Saver,
   Fast Capture
-- Picker in overflow menu (not top bar)
-- Bottom sheet with name + description (no numeric details)
-- Persist in SharedPreferences as indigisnap_capture_preset
-- Applies to both cameras
-- Storage Saver and Fast Capture use both resolution and quality
-  reduction
-- FIRST: CameraX capability diagnostic to see what's available
-- Post-processing as fallback only if native quality control is absent
-- Both front and back cameras
+- Picker in overflow menu between switch and done
+- Dialog with single-choice list; no numeric details exposed
+- Persist in SharedPreferences (file=indigisnap_camera, key=capture_preset)
+- CameraX diagnostic confirmed: setJpegQuality + setCaptureMode both native
+- Implementation:
+  - CapturePreset.kt enum (4 entries)
+  - CameraController.buildImageCapture() driven by current preset
+  - CameraController.setPreset() rebinds ImageCapture on change
+  - CameraActivity.showPresetPicker() dialog + SharedPreferences
+- Committed: 0016ec4, c161360
+- TO VERIFY on phone:
+  - Overflow button visible, no collision with X
+  - Picker opens with 4 options, current preset checked
+  - Selecting preset closes dialog and rebinds (~100-200ms blink)
+  - Reopening picker shows new selection
+  - Closing and reopening camera persists selection
+  - Capture still works in each preset
+  - Flash mode unaffected by preset change
 
 ### Pass D — CameraTheme.kt + Vector Drawables [ ]
 - New file with color constants, button builders, glow helpers,
