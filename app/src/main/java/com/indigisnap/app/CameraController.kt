@@ -53,7 +53,8 @@ class CameraController(
         fun onShotAdded(shot: SessionShot)
         fun onShotsChanged(shots: List<SessionShot>)
         fun onShotFailed(reason: String)
-        fun onShutterStateChanged(enabled: Boolean)
+        fun onShutterStateChanged(state: ShutterState)
+        fun onCaptureStarted()
         fun onCameraUnavailable(reason: String)
         fun onPreviewReady()
         fun onCameraStateChanged(lensFacing: Int, flashMode: Int)
@@ -163,6 +164,7 @@ class CameraController(
             }
 
             isCapturing = true
+            listener.onCaptureStarted()
             updateShutterState()
 
             // Re-read rotation with a fallback so targetRotation is never
@@ -558,6 +560,43 @@ class CameraController(
     }
 
     /**
+     * Requests AF/AE at a point in preview view coordinates.
+     * The callback fires on the main thread with true on success,
+     * false on any failure (canceled, no camera, exception).
+     */
+    fun focusAt(viewX: Float, viewY: Float, callback: (Boolean) -> Unit) {
+        mainHandler.post {
+            val cam = currentCamera
+            if (cam == null) {
+                callback(false)
+                return@post
+            }
+            try {
+                val factory = previewView.meteringPointFactory
+                val point = factory.createPoint(viewX, viewY)
+                val action = androidx.camera.core.FocusMeteringAction
+                    .Builder(point)
+                    .setAutoCancelDuration(3, TimeUnit.SECONDS)
+                    .build()
+                val future = cam.cameraControl.startFocusAndMetering(action)
+                future.addListener({
+                    val ok = try {
+                        future.get()
+                        true
+                    } catch (e: Exception) {
+                        Log.d(TAG, "focus failed: " + e.message)
+                        false
+                    }
+                    mainHandler.post { callback(ok) }
+                }, ContextCompat.getMainExecutor(context))
+            } catch (e: Exception) {
+                Log.w(TAG, "focusAt exception: " + e.message)
+                callback(false)
+            }
+        }
+    }
+
+    /**
      * Returns the current capture preset. Used by the Activity to render
      * the preset picker with the correct selection highlighted.
      */
@@ -742,8 +781,13 @@ class CameraController(
     }
 
     private fun updateShutterState() {
-        val enabled = !isCapturing && !isSaving && !shutterCooldown && bindSucceeded
-        listener.onShutterStateChanged(enabled)
+        val state = when {
+            !bindSucceeded -> ShutterState.DISABLED
+            isCapturing || isSaving -> ShutterState.DISABLED
+            shutterCooldown -> ShutterState.COOLDOWN
+            else -> ShutterState.READY
+        }
+        listener.onShutterStateChanged(state)
     }
 
     private fun nextOutputFile(): File {

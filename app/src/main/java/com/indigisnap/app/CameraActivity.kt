@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.Log
 import android.util.TypedValue
+import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
@@ -66,10 +67,10 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
     private lateinit var previewView: PreviewView
     private lateinit var rootLayout: FrameLayout
     private lateinit var shutterButton: View
-    private lateinit var closeButton: Button
-    private lateinit var doneButton: Button
-    private lateinit var flashButton: Button
-    private lateinit var switchButton: Button
+    private lateinit var closeButton: CameraTheme.IconButton
+    private lateinit var doneButton: CameraTheme.IconButton
+    private lateinit var flashButton: CameraTheme.IconButton
+    private lateinit var switchButton: CameraTheme.IconButton
     private lateinit var presetButton: Button
     private lateinit var shotCountLabel: TextView
     private lateinit var thumbnailStrip: LinearLayout
@@ -83,6 +84,16 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
     // State
     private var fallbackRequested = false
     private var fallbackReason: String? = null
+
+    // Shutter visuals
+    private var shutterRing: View? = null
+    private var shutterInner: View? = null
+    private var currentShutterState: ShutterState = ShutterState.DISABLED
+
+    // Gesture / focus feedback
+    private lateinit var tapDetector: GestureDetector
+    private var focusIndicator: View? = null
+    private var switchPill: TextView? = null
 
     private lateinit var scaleDetector: ScaleGestureDetector
 
@@ -173,8 +184,36 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
                 return true
             }
         })
+        tapDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                handleFocusTap(e.x, e.y)
+                return true
+            }
+
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                if (e1 == null) return false
+                val dx = e2.x - e1.x
+                val dy = e2.y - e1.y
+                // Vertical upward swipe: dy negative, |dy| > |dx|, long enough
+                if (dy < -120f && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.5f) {
+                    controller?.switchCamera()
+                    showSwitchPill()
+                    return true
+                }
+                return false
+            }
+        })
+
         previewView.setOnTouchListener { _, event ->
             scaleDetector.onTouchEvent(event)
+            tapDetector.onTouchEvent(event)
             true
         }
 
@@ -187,10 +226,9 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
 
     private fun buildTopControls() {
         // Close button (top-left)
-        closeButton = makeOverlayButton("\u274C").apply {
-            setOnClickListener { attemptClose() }
-        }
-        rootLayout.addView(closeButton, FrameLayout.LayoutParams(
+        closeButton = CameraTheme.makeIconButton(this, R.drawable.ic_close)
+        closeButton.container.setOnClickListener { attemptClose() }
+        rootLayout.addView(closeButton.container, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
@@ -198,27 +236,24 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             setMargins(30, 60, 0, 0)
         })
 
-        // Right-side group: flash, switch, done
+        // Right-side group: flash, switch, preset, done
         val rightGroup = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
-        flashButton = makeOverlayButton("\u26A1").apply {
-            setOnClickListener { controller?.cycleFlash() }
-        }
-        switchButton = makeOverlayButton("\uD83D\uDD04").apply {
-            setOnClickListener { controller?.switchCamera() }
-        }
+        flashButton = CameraTheme.makeIconButton(this, R.drawable.ic_flash_off)
+        flashButton.container.setOnClickListener { controller?.cycleFlash() }
+        switchButton = CameraTheme.makeIconButton(this, R.drawable.ic_camera_switch)
+        switchButton.container.setOnClickListener { controller?.switchCamera() }
         presetButton = makeOverlayButton("\u22EE").apply {
             setOnClickListener { showPresetPicker() }
         }
-        doneButton = makeOverlayButton("\u2705").apply {
-            visibility = View.GONE
-            setOnClickListener { confirmCommit() }
-        }
-        rightGroup.addView(flashButton)
-        rightGroup.addView(switchButton)
+        doneButton = CameraTheme.makeIconButton(this, R.drawable.ic_check, CameraTheme.GREEN)
+        doneButton.container.visibility = View.GONE
+        doneButton.container.setOnClickListener { confirmCommit() }
+        rightGroup.addView(flashButton.container)
+        rightGroup.addView(switchButton.container)
         rightGroup.addView(presetButton)
-        rightGroup.addView(doneButton)
+        rightGroup.addView(doneButton.container)
 
         rootLayout.addView(rightGroup, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -356,7 +391,40 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         container.setOnClickListener {
             controller?.capturePhoto()
         }
+
+        shutterRing = ring
+        shutterInner = inner
+        applyShutterState(currentShutterState)
         return container
+    }
+
+    /**
+     * Applies a ShutterState to the ring and inner circle colors.
+     * READY -> green ring, white dot
+     * COOLDOWN -> amber ring, dimmer dot
+     * DISABLED -> dim ring, dim dot
+     */
+    private fun applyShutterState(state: ShutterState) {
+        currentShutterState = state
+        val ringColor = when (state) {
+            ShutterState.READY -> CameraTheme.GREEN
+            ShutterState.COOLDOWN -> CameraTheme.AMBER
+            ShutterState.DISABLED -> 0x33FFFFFF.toInt()
+        }
+        val innerColor = when (state) {
+            ShutterState.READY -> Color.WHITE
+            ShutterState.COOLDOWN -> 0xCCFFFFFF.toInt()
+            ShutterState.DISABLED -> 0x55FFFFFF.toInt()
+        }
+        shutterRing?.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setStroke(dpToPx(4), ringColor)
+            setColor(Color.TRANSPARENT)
+        }
+        shutterInner?.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(innerColor)
+        }
     }
 
     private fun dpToPx(dp: Int): Int {
@@ -365,6 +433,113 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             dp.toFloat(),
             resources.displayMetrics
         ).toInt()
+    }
+
+    /**
+     * Called on single-tap on the preview. Requests focus at the tapped
+     * point and shows a focus indicator ring that fades out.
+     */
+    private fun handleFocusTap(x: Float, y: Float) {
+        showFocusIndicator(x, y, CameraTheme.GREEN, "pending")
+        controller?.focusAt(x, y) { success ->
+            runOnUiThread {
+                val color = if (success) CameraTheme.GREEN else CameraTheme.RED
+                focusIndicator?.background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setStroke(dpToPx(3), color)
+                    setColor(Color.TRANSPARENT)
+                }
+            }
+        }
+    }
+
+    /**
+     * Shows a circular focus indicator at (x, y), pulsing then fading out.
+     * Replaces any existing indicator.
+     */
+    private fun showFocusIndicator(x: Float, y: Float, color: Int, tag: String) {
+        focusIndicator?.let { rootLayout.removeView(it) }
+
+        val size = dpToPx(80)
+        val indicator = View(this).apply {
+            this.tag = tag
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setStroke(dpToPx(3), color)
+                setColor(Color.TRANSPARENT)
+            }
+            layoutParams = FrameLayout.LayoutParams(size, size).apply {
+                leftMargin = (x - size / 2f).toInt()
+                topMargin = (y - size / 2f).toInt()
+            }
+            alpha = 1.0f
+            scaleX = 1.3f
+            scaleY = 1.3f
+        }
+        rootLayout.addView(indicator)
+        focusIndicator = indicator
+
+        indicator.animate()
+            .scaleX(1.0f).scaleY(1.0f)
+            .setDuration(150)
+            .withEndAction {
+                indicator.animate()
+                    .alpha(0f)
+                    .setStartDelay(500)
+                    .setDuration(300)
+                    .withEndAction {
+                        if (focusIndicator === indicator) {
+                            rootLayout.removeView(indicator)
+                            focusIndicator = null
+                        }
+                    }
+                    .start()
+            }
+            .start()
+    }
+
+    /**
+     * Shows a brief feedback pill at the top center indicating which
+     * camera is now active.
+     */
+    private fun showSwitchPill() {
+        switchPill?.let { rootLayout.removeView(it) }
+
+        val pill = TextView(this).apply {
+            val ctrl = controller
+            // Query current lens after switch. If unavailable, show generic.
+            // CameraController doesn't expose lensFacing publicly; use
+            // onCameraStateChanged to confirm. Show generic "Switched".
+            text = "Switched"
+            setTextColor(CameraTheme.GREEN)
+            textSize = 14f
+            setBackgroundColor(Color.parseColor("#EE120C1F"))
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                topMargin = dpToPx(140)
+            }
+            alpha = 0.0f
+        }
+        rootLayout.addView(pill)
+        switchPill = pill
+
+        pill.animate().alpha(1.0f).setDuration(120).withEndAction {
+            pill.animate()
+                .alpha(0.0f)
+                .setStartDelay(700)
+                .setDuration(250)
+                .withEndAction {
+                    if (switchPill === pill) {
+                        rootLayout.removeView(pill)
+                        switchPill = null
+                    }
+                }
+                .start()
+        }.start()
     }
 
     // ---------------------------------------------------------------
@@ -376,13 +551,13 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         if (shots.isEmpty()) {
             thumbnailScroll.visibility = View.GONE
             shotCountLabel.text = ""
-            doneButton.visibility = View.GONE
+            doneButton.container.visibility = View.GONE
             return
         }
         thumbnailScroll.visibility = View.VISIBLE
         val nonDeleted = shots.count { !it.markedForDeletion }
         shotCountLabel.text = "$nonDeleted of " + shots.size + " to save"
-        doneButton.visibility = View.VISIBLE
+        doneButton.container.visibility = View.VISIBLE
 
         shots.forEachIndexed { index, shot ->
             val thumbContainer = FrameLayout(this).apply {
@@ -659,9 +834,8 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             }
         }
 
-        val closeBtn = makeOverlayButton("\u2190").apply {
-            setOnClickListener { closeReviewOverlay() }
-        }
+        val closeBtn = CameraTheme.makeIconButton(this, R.drawable.ic_close)
+        closeBtn.container.setOnClickListener { closeReviewOverlay() }
         val counter = TextView(this).apply {
             setTextColor(Color.parseColor("#00FF99"))
             textSize = 16f
@@ -670,14 +844,13 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         val spacer = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
         }
-        val doneBtn = makeOverlayButton("\u2705").apply {
-            setOnClickListener { confirmCommit() }
-        }
+        val doneBtn = CameraTheme.makeIconButton(this, R.drawable.ic_check, CameraTheme.GREEN)
+        doneBtn.container.setOnClickListener { confirmCommit() }
 
-        topBar.addView(closeBtn)
+        topBar.addView(closeBtn.container)
         topBar.addView(counter)
         topBar.addView(spacer)
-        topBar.addView(doneBtn)
+        topBar.addView(doneBtn.container)
         overlay.addView(topBar)
 
         // ---- Bottom bar ----
@@ -693,19 +866,17 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             }
         }
 
-        val rotateLeft = makeOverlayButton("\u21BA").apply {
-            setOnClickListener { rotateCurrent(-90) }
-        }
+        val rotateLeft = CameraTheme.makeIconButton(this, R.drawable.ic_rotate_left)
+        rotateLeft.container.setOnClickListener { rotateCurrent(-90) }
         val deleteBtn = makeOverlayButton("\uD83D\uDDD1\uFE0F Delete").apply {
             setOnClickListener { toggleCurrentReviewShot() }
         }
-        val rotateRight = makeOverlayButton("\u21BB").apply {
-            setOnClickListener { rotateCurrent(90) }
-        }
+        val rotateRight = CameraTheme.makeIconButton(this, R.drawable.ic_rotate_right)
+        rotateRight.container.setOnClickListener { rotateCurrent(90) }
 
-        bottomBar.addView(rotateLeft)
+        bottomBar.addView(rotateLeft.container)
         bottomBar.addView(deleteBtn)
-        bottomBar.addView(rotateRight)
+        bottomBar.addView(rotateRight.container)
         overlay.addView(bottomBar)
 
         reviewDeleteButton = deleteBtn
@@ -938,10 +1109,28 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         }
     }
 
-    override fun onShutterStateChanged(enabled: Boolean) {
+    override fun onShutterStateChanged(state: ShutterState) {
         runOnUiThread {
-            shutterButton.isEnabled = enabled
-            shutterButton.alpha = if (enabled) 1.0f else 0.4f
+            shutterButton.isEnabled = state == ShutterState.READY
+            applyShutterState(state)
+        }
+    }
+
+    override fun onCaptureStarted() {
+        // One-shot press pulse on the inner dot. No continuous animation
+        // (battery/GPU rule).
+        runOnUiThread {
+            val inner = shutterInner ?: return@runOnUiThread
+            inner.animate()
+                .scaleX(0.85f).scaleY(0.85f)
+                .setDuration(70)
+                .withEndAction {
+                    inner.animate()
+                        .scaleX(1f).scaleY(1f)
+                        .setDuration(80)
+                        .start()
+                }
+                .start()
         }
     }
 
@@ -951,13 +1140,16 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
 
     override fun onCameraStateChanged(lensFacing: Int, flashMode: Int) {
         runOnUiThread {
-            val flashLabel = when (flashMode) {
-                ImageCapture.FLASH_MODE_OFF -> "\u26A1"
-                ImageCapture.FLASH_MODE_AUTO -> "\u26A1A"
-                ImageCapture.FLASH_MODE_ON -> "\u26A1\u25CF"
-                else -> "\u26A1"
+            when (flashMode) {
+                ImageCapture.FLASH_MODE_OFF ->
+                    CameraTheme.updateIcon(flashButton, R.drawable.ic_flash_off, CameraTheme.ICON_NEUTRAL)
+                ImageCapture.FLASH_MODE_AUTO ->
+                    CameraTheme.updateIcon(flashButton, R.drawable.ic_flash_auto, CameraTheme.AMBER)
+                ImageCapture.FLASH_MODE_ON ->
+                    CameraTheme.updateIcon(flashButton, R.drawable.ic_flash_on, CameraTheme.AMBER)
+                else ->
+                    CameraTheme.updateIcon(flashButton, R.drawable.ic_flash_off, CameraTheme.ICON_NEUTRAL)
             }
-            flashButton.text = flashLabel
         }
     }
 
