@@ -114,6 +114,34 @@ Legend: [x] done · [~] in progress · [ ] not started · [!] blocked
 - generateThumbnail and updateReviewDisplay updated
 - VERIFY in field test
 
+### Pass VB — Video Thumbnail Generation [ ]
+- Status: cleanup + display logic exist, generation is missing entirely
+- Files: go-backend/internal/video/video.go, handlers/actions.go
+- The .thumbs/<basename>.jpg convention is referenced in video.go,
+  browse.go, and actions.go, but nothing ever WRITES a thumbnail.
+- Implement VB.1: after video committed from inbox to target folder,
+  generate JPEG at {folder}/.thumbs/{basename}.jpg (10 percent frame,
+  low quality per CAMERA_SPEC Item 9).
+- Decide ffmpeg approach: bundled binary vs on-device shell vs
+  skip if unavailable. Android device may not have ffmpeg installed.
+- Also implement VB.5: regen on demand when /browse finds a video
+  without a thumb.
+- Field symptom: video tiles show placeholder emoji, no image.
+
+### Pass VV — Video Viewer White Screen [ ]
+- Status: videos don't play in the gallery viewer
+- Files: go-backend/internal/handlers/view.go, internal/ui/interface.html
+- view.go:137 hardcodes Content-Type "image/jpeg" for ALL files,
+  including videos. Browser receives MP4 bytes labeled as JPEG and
+  fails to render.
+- Fix: detect file extension, set correct Content-Type
+  (video/mp4, video/quicktime, etc.) for video files.
+- interface.html: viewer has no <video> element handling. Videos
+  open in <img>, which cannot play. Add a <video controls> render
+  path when .IsVideo is true.
+- Field symptom: tapping a video shows white screen or placeholder
+  with "gallery image" text.
+
 ---
 
 ## Deferred (Do Not Build Without Explicit Request)
