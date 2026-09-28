@@ -238,6 +238,32 @@ class CameraController(
         }
     }
 
+    /**
+     * Immediately deletes the selected shots from disk and removes them
+     * from the session. Used by the batch "Delete Selected" action.
+     *
+     * Direct action: no marking step, no reversibility. Matches the
+     * field-tested expectation "delete the selected" (Option A).
+     */
+    fun deleteSelectedShots(indices: Set<Int>) {
+        mainHandler.post {
+            if (indices.isEmpty()) return@post
+            val sorted = indices.sortedDescending()
+            for (i in sorted) {
+                if (i !in shots.indices) continue
+                val shot = shots[i]
+                try {
+                    if (shot.file.exists()) shot.file.delete()
+                } catch (e: Exception) {
+                    Log.w(TAG, "deleteSelectedShots failed for " + shot.file.name + ": " + e.message)
+                }
+                shots.removeAt(i)
+            }
+            listener.onShotsChanged(shots.toList())
+            Log.i(TAG, "deleteSelectedShots: " + indices.size + " removed, " + shots.size + " remaining")
+        }
+    }
+
     fun switchCamera() {
         mainHandler.post {
             val provider = cameraProvider ?: return@post

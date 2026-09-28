@@ -71,7 +71,7 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
     private lateinit var doneButton: CameraTheme.IconButton
     private lateinit var flashButton: CameraTheme.IconButton
     private lateinit var switchButton: CameraTheme.IconButton
-    private lateinit var presetButton: Button
+    private lateinit var presetButton: CameraTheme.IconButton
     private lateinit var shotCountLabel: TextView
     private lateinit var thumbnailStrip: LinearLayout
     private lateinit var thumbnailScroll: HorizontalScrollView
@@ -244,15 +244,14 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         flashButton.container.setOnClickListener { controller?.cycleFlash() }
         switchButton = CameraTheme.makeIconButton(this, R.drawable.ic_camera_switch)
         switchButton.container.setOnClickListener { controller?.switchCamera() }
-        presetButton = makeOverlayButton("\u22EE").apply {
-            setOnClickListener { showPresetPicker() }
-        }
+        presetButton = CameraTheme.makeIconButton(this, R.drawable.ic_more_vert)
+        presetButton.container.setOnClickListener { showPresetPicker() }
         doneButton = CameraTheme.makeIconButton(this, R.drawable.ic_check, CameraTheme.GREEN)
         doneButton.container.visibility = View.GONE
         doneButton.container.setOnClickListener { confirmCommit() }
         rightGroup.addView(flashButton.container)
         rightGroup.addView(switchButton.container)
-        rightGroup.addView(presetButton)
+        rightGroup.addView(presetButton.container)
         rightGroup.addView(doneButton.container)
 
         rootLayout.addView(rightGroup, FrameLayout.LayoutParams(
@@ -701,20 +700,17 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         val spacer = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
         }
-        val markBtn = makeOverlayButton("\uD83D\uDDD1\uFE0F Mark").apply {
-            setOnClickListener { confirmBatchMark() }
-        }
-        val commitBtn = makeOverlayButton("\u2705 Commit Selected").apply {
-            setOnClickListener { confirmCommitSelected() }
-        }
-        val cancelBtn = makeOverlayButton("\u2715 Cancel").apply {
-            setOnClickListener { exitBatchSelectMode() }
-        }
+        val deleteBtn = CameraTheme.makeIconButton(this, R.drawable.ic_delete, CameraTheme.RED)
+        deleteBtn.container.setOnClickListener { confirmDeleteSelected() }
+        val commitBtn = CameraTheme.makeIconButton(this, R.drawable.ic_check, CameraTheme.GREEN)
+        commitBtn.container.setOnClickListener { confirmCommitSelected() }
+        val cancelBtn = CameraTheme.makeIconButton(this, R.drawable.ic_close)
+        cancelBtn.container.setOnClickListener { exitBatchSelectMode() }
         bar.addView(countLabel)
         bar.addView(spacer)
-        bar.addView(markBtn)
-        bar.addView(commitBtn)
-        bar.addView(cancelBtn)
+        bar.addView(deleteBtn.container)
+        bar.addView(commitBtn.container)
+        bar.addView(cancelBtn.container)
         rootLayout.addView(bar)
     }
 
@@ -730,7 +726,12 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         label.text = count.toString() + " selected"
     }
 
-    private fun confirmBatchMark() {
+    /**
+     * Delete Selected: immediately deletes the selected files from disk.
+     * Option A semantics: direct action, no hidden "marked" state.
+     * Exits multi-select mode. Camera session continues.
+     */
+    private fun confirmDeleteSelected() {
         val ctrl = controller ?: return
         val shots = ctrl.shotsSnapshot()
         val selectedIndices = shots.indices.filter { shots[it].selectedForBatch }.toSet()
@@ -738,12 +739,16 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
             Toast.makeText(this, "Nothing selected", Toast.LENGTH_SHORT).show()
             return
         }
-        // Check if every selected shot is already marked for deletion.
-        // If so, unmark. Otherwise, mark all. Matches the batch-favorite
-        // toggle pattern described in MASTER_PROMPT decisions.
-        val allMarked = selectedIndices.all { shots[it].markedForDeletion }
-        ctrl.markShotsDeleted(selectedIndices, !allMarked)
-        exitBatchSelectMode()
+        AlertDialog.Builder(this)
+            .setTitle("Delete selected?")
+            .setMessage("Delete " + selectedIndices.size + " shot(s)? This cannot be undone.")
+            .setPositiveButton("Delete") { _, _ ->
+                ctrl.deleteSelectedShots(selectedIndices)
+                exitBatchSelectMode()
+            }
+            .setNegativeButton("Cancel") { _, _ -> }
+            .setCancelable(false)
+            .show()
     }
 
     private fun confirmCommitSelected() {
