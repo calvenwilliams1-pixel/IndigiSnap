@@ -391,5 +391,12 @@ func findVideoThumbURL(baseDir, videoPath string) string {
 	if err != nil {
 		return ""
 	}
-	return "/view/" + url.QueryEscape(filepath.ToSlash(rel))
+	// Encode each path segment individually so that "/" separators are
+	// preserved (url.QueryEscape would turn them into %2F, breaking the
+	// route). Spaces become %20, which the /view handler decodes correctly.
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	for i, s := range parts {
+		parts[i] = url.PathEscape(s)
+	}
+	return "/view/" + strings.Join(parts, "/")
 }
