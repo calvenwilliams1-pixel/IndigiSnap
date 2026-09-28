@@ -163,6 +163,20 @@ class MainActivity : AppCompatActivity() {
         webView.settings.mediaPlaybackRequiresUserGesture = false
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // Deferred thumbnail generation: any video without a
+                // matching .thumbs/<base>.jpg gets one generated in the
+                // background. Cheap after first run (skips existing thumbs).
+                Thread {
+                    try {
+                        VideoThumbnails.generateMissingIn(File(filesDir, "IndigiSnap"))
+                    } catch (e: Exception) {
+                        Log.w(TAG, "video thumb scan failed: " + e.message)
+                    }
+                }.start()
+            }
+
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?
