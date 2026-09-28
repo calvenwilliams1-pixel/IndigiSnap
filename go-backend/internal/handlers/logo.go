@@ -158,7 +158,7 @@ func (h *LogoHandler) SetLogo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write new file to a temp name first.
-	tempPath := filepath.Join(logoDir, ".uploading" + ext)
+	tempPath := filepath.Join(logoDir, ".uploading"+ext)
 	out, err := os.Create(tempPath)
 	if err != nil {
 		http.Error(w, "Cannot create temp file: "+err.Error(), 500)

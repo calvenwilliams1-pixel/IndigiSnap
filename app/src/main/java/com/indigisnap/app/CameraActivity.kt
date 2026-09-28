@@ -24,7 +24,6 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.view.PreviewView
 import androidx.core.view.WindowCompat
@@ -505,8 +504,6 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         switchPill?.let { rootLayout.removeView(it) }
 
         val pill = TextView(this).apply {
-            val ctrl = controller
-            // Query current lens after switch. If unavailable, show generic.
             // CameraController doesn't expose lensFacing publicly; use
             // onCameraStateChanged to confirm. Show generic "Switched".
             text = "Switched"

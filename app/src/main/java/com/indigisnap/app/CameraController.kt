@@ -9,7 +9,6 @@ import android.hardware.camera2.CameraManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.util.Size
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -370,33 +369,6 @@ class CameraController(
     }
 
     /**
-     * Deletes a set of shots from the session (files + list entries).
-     * Internal cleanup only. User-facing delete goes through
-     * toggleShotDeletion (mark) or markShotsDeleted (batch mark),
-     * which are both reversible.
-     * Must be called from the main thread.
-     */
-    private fun removeShotsInternal(indices: Set<Int>) {
-        mainHandler.post {
-            if (indices.isEmpty()) return@post
-            // Sort descending so removals do not shift indices
-            val sorted = indices.sortedDescending()
-            for (i in sorted) {
-                if (i !in shots.indices) continue
-                val shot = shots[i]
-                try {
-                    if (shot.file.exists()) shot.file.delete()
-                } catch (e: Exception) {
-                    Log.w(TAG, "deleteShots: file delete failed for " + shot.file.name + ": " + e.message)
-                }
-                shots.removeAt(i)
-            }
-            listener.onShotsChanged(shots.toList())
-            Log.i(TAG, "deleteShots: removed " + indices.size + " shots, " + shots.size + " remaining")
-        }
-    }
-
-    /**
      * Toggles the batch-selection flag on a shot.
      * Used during multi-select mode.
      */
@@ -574,17 +546,6 @@ class CameraController(
         }
     }
 
-    fun zoomBounds(): Pair<Float, Float> {
-        val state = try {
-            currentCamera?.cameraInfo?.zoomState?.value
-        } catch (e: Exception) {
-            null
-        }
-        val min = state?.minZoomRatio ?: 1.0f
-        val max = state?.maxZoomRatio ?: 1.0f
-        return Pair(min, max)
-    }
-
     /**
      * Requests AF/AE at a point in preview view coordinates.
      * The callback fires on the main thread with true on success,
@@ -690,6 +651,7 @@ class CameraController(
 
         // Using deprecated target resolution as a simple upper-bound cap.
         // Can be migrated to ResolutionSelector in a future CameraX upgrade.
+        @Suppress("DEPRECATION")
         currentPreset.targetResolution?.let { size ->
             builder.setTargetResolution(size)
         }

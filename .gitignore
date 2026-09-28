@@ -23,3 +23,10 @@ go-backend/server
 # Native libraries (built by CI or cross-compiled locally)
 app/src/main/jniLibs/*/*.so
 app/src/main/jniLibs/*/*.h
+
+# Play Store signing (NEVER commit)
+keystore.properties*
+*.keystore
+*.jks
+*.keystore.backup
+*.keystore.save

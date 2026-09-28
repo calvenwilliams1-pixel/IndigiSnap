@@ -252,7 +252,6 @@ func RemoveFromRecents(recents []map[string]string, folderPath string) []map[str
 // ErrNotImplemented is a placeholder for routes we have not yet ported.
 var ErrNotImplemented = errors.New("not implemented")
 
-
 // GetLogoPath returns the absolute path to the logo file in BASE_DIR/logo/,
 // or "" if no suitable file exists.
 //
@@ -322,7 +321,6 @@ func GetLogoURL(baseDir string) string {
 	}
 	return "/logo/" + url.PathEscape(filepath.Base(path))
 }
-
 
 // RecentEntry is one item in the recents list.
 type RecentEntry struct {

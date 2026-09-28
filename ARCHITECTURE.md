@@ -54,10 +54,9 @@ Repository layout, file purposes, runtime constraints.
 **CameraController.kt**
 - All CameraX wiring (bind, capture, rotation, warm-up, timeouts)
 - Shot session state (List<SessionShot>)
-- rotateShot (needs verification pass), deleteShots (to be repurposed),
+- rotateShot (needs verification pass), deleteSelectedShots, markShotsDeleted,
   toggleShotDeletion, toggleBatchSelection, clearBatchSelection
-- loadOrientedBitmap (to be split into loadThumbnail and
-  loadFullResolution)
+- loadFullResolution, loadThumbnail (sampled decode), applyExifOrientation
 - focusAt (queued), setZoomRatio, updateTargetRotation
 - Diagnostic logging (to be removed after Pass Q)
 

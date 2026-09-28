@@ -337,13 +337,13 @@ func deleteVideoThumbnails(fullPath string) {
 // RotatePicture handles POST /rotate_picture/<path>?degrees=90|180|270.
 //
 // Per decision in DECISIONS_OPEN.md (Rotate + EXIF Interaction):
-//   1. Read existing EXIF orientation.
-//   2. Decode pixels.
-//   3. Apply orientation correction (so image is visually upright).
-//   4. Apply user's requested rotation.
-//   5. Re-encode as JPEG (imaging.Save strips metadata).
-//   6. Write via temp + atomic rename.
-//   7. Delete any stale thumbnails (both namings).
+//  1. Read existing EXIF orientation.
+//  2. Decode pixels.
+//  3. Apply orientation correction (so image is visually upright).
+//  4. Apply user's requested rotation.
+//  5. Re-encode as JPEG (imaging.Save strips metadata).
+//  6. Write via temp + atomic rename.
+//  7. Delete any stale thumbnails (both namings).
 //
 // After rotation, pixel orientation is the source of truth.
 func (h *ActionHandler) RotatePicture(w http.ResponseWriter, r *http.Request) {
@@ -462,4 +462,3 @@ func applyExifRotation(img image.Image, orientation int) image.Image {
 		return img
 	}
 }
-

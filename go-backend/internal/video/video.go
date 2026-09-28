@@ -98,8 +98,8 @@ func GenerateThumbnailBackground(videoPath string) {
 // CleanOrphanThumbnails removes orphaned thumbnail files whose video no
 // longer exists. Handles two naming conventions:
 //
-//   Legacy: <basename>_thumb.jpg alongside the video (same folder)
-//   New:    .thumbs/<basename>.jpg in a hidden subfolder
+//	Legacy: <basename>_thumb.jpg alongside the video (same folder)
+//	New:    .thumbs/<basename>.jpg in a hidden subfolder
 //
 // Also removes the .thumbs/ folder if it becomes empty.
 func CleanOrphanThumbnails(folderPath string) {

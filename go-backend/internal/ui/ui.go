@@ -12,24 +12,24 @@ var interfaceHTML string
 // TemplateData carries the fields the HTML template expects.
 // This mirrors the Jinja2 context from the original Flask app.
 type TemplateData struct {
-	Folder        string
-	Items         []FolderItem
-	Images        []MediaItem
-	Meta          FolderMeta
-	Recents       []Recent
-	Page          int
-	TotalPages    int
-	LogoURL       string
-	SortBy        string
-	FilterType    string
-	Breadcrumbs   []Breadcrumb
+	Folder      string
+	Items       []FolderItem
+	Images      []MediaItem
+	Meta        FolderMeta
+	Recents     []Recent
+	Page        int
+	TotalPages  int
+	LogoURL     string
+	SortBy      string
+	FilterType  string
+	Breadcrumbs []Breadcrumb
 }
 
 // FolderItem is a subfolder tile.
 type FolderItem struct {
-	Name      string
-	URL       string
-	Previews  []string
+	Name     string
+	URL      string
+	Previews []string
 }
 
 // MediaItem is an image or video tile.

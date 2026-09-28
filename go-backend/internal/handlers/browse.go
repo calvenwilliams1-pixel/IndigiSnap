@@ -352,7 +352,6 @@ func toUIBreadcrumbs(in []meta.Breadcrumb) []ui.Breadcrumb {
 	return out
 }
 
-
 // toUIRecents converts []meta.RecentEntry to []ui.Recent for the template.
 func toUIRecents(in []meta.RecentEntry) []ui.Recent {
 	out := make([]ui.Recent, 0, len(in))

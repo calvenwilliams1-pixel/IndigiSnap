@@ -11,7 +11,6 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import androidx.core.content.ContextCompat
 
 /**
  * CameraTheme centralizes colors, sizes, and reusable view builders for
