@@ -286,8 +286,9 @@ private fun showSplash() {
                 val appContext = applicationContext
                 Thread {
                     try {
-                        StorageConfig.baseDirFile(appContext)?.let {
-                            VideoThumbnails.generateMissingIn(it)
+                        val baseDir = StorageConfig.baseDirFile(appContext)
+                        if (baseDir != null) {
+                            VideoThumbnails.generateMissingIn(appContext.cacheDir, baseDir)
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "video thumb scan failed: " + e.message)
