@@ -101,7 +101,14 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
 
         sessionId = intent.getStringExtra(EXTRA_SESSION_ID) ?: SessionState.newSessionId()
         folder = intent.getStringExtra(EXTRA_FOLDER) ?: ""
-        inboxDir = File(File(filesDir, "IndigiSnap/.inbox"), sessionId)
+        val baseDir = StorageConfig.baseDirFile(this)
+        if (baseDir == null) {
+            Log.e(TAG, "Cannot start camera: no storage configured")
+            Toast.makeText(this, "Storage not configured", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+        inboxDir = File(File(baseDir, ".inbox"), sessionId)
 
         Log.i(TAG, "onCreate session=$sessionId folder='$folder'")
 
@@ -1244,11 +1251,16 @@ class CameraActivity : AppCompatActivity(), CameraController.Listener {
         }
 
         // Destination folder
-        val baseDir = filesDir
+        val baseDir = StorageConfig.baseDirFile(this)
+        if (baseDir == null) {
+            Log.e(TAG, "Cannot commit: no storage configured")
+            Toast.makeText(this, "Storage not configured", Toast.LENGTH_SHORT).show()
+            return
+        }
         val destDir = if (folder.isEmpty()) {
-            File(baseDir, "IndigiSnap")
+            baseDir
         } else {
-            File(File(baseDir, "IndigiSnap"), folder)
+            File(baseDir, folder)
         }
         if (!destDir.exists()) destDir.mkdirs()
 

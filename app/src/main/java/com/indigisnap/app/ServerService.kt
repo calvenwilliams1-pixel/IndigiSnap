@@ -52,7 +52,11 @@ class ServerService : Service() {
     }
 
     private fun startServer() {
-        val baseDir = File(filesDir, "IndigiSnap")
+        val baseDir = StorageConfig.baseDirFile(this)
+        if (baseDir == null) {
+            android.util.Log.e("IndigiSnapDebug", "Server cannot start: no base dir configured")
+            return
+        }
         if (!baseDir.exists()) {
             baseDir.mkdirs()
         }

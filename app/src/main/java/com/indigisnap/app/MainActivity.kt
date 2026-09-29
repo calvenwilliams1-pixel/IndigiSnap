@@ -32,7 +32,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "IndigiSnap.Main"
-        private const val PERMISSION_REQUEST_CODE = 2001
         private const val FILE_CHOOSER_REQUEST_CODE = 1001
         private const val CAMERA_ACTIVITY_REQUEST_CODE = 1002
 
@@ -65,6 +64,47 @@ class MainActivity : AppCompatActivity() {
     // ---------------------------------------------------------------
     // Launchers (modern Activity Result API)
     // ---------------------------------------------------------------
+
+    private val safFolderLauncher: androidx.activity.result.ActivityResultLauncher<Uri?> =
+        registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) {
+            // User cancelled the picker. Re-prompt on next launch.
+            Log.w(TAG, "SAF picker cancelled")
+            android.widget.Toast.makeText(
+                this,
+                "IndigiSnap needs a folder to store your photos.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return@registerForActivityResult
+        }
+        // Persist read/write access across app restarts
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "takePersistableUriPermission failed: " + e.message)
+        }
+        if (StorageConfig.saveFromUri(this, uri)) {
+            Log.i(TAG, "Storage configured: " + StorageConfig.baseDirFile(this))
+            startServerServiceAndLoad()
+        } else {
+            android.widget.Toast.makeText(
+                this,
+                "Please pick a folder on internal storage (not SD card or cloud).",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            launchSafPicker()
+        }
+    }
+
+    private fun launchSafPicker() {
+        safFolderLauncher.launch(null)
+    }
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -104,34 +144,23 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         Log.i(TAG, "onCreate START")
 
-        // Preserve existing launch-time permission batch request (CAMERA + media)
-        if (Build.VERSION.SDK_INT >= 23) {
-            val perms = mutableListOf<String>()
-            perms.add(Manifest.permission.CAMERA)
-            if (Build.VERSION.SDK_INT >= 33) {
-                perms.add("android.permission.READ_MEDIA_IMAGES")
-                perms.add("android.permission.READ_MEDIA_VIDEO")
-            } else {
-                perms.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-                perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
-            requestPermissions(perms.toTypedArray(), PERMISSION_REQUEST_CODE)
-        }
+        // Build UI first so webView exists before any async callback fires.
+        setupWebView()
+        setContentView(webView)
+        showSplash()
 
         // Orphan inbox detection — log only, no UI (recovery is 4.5)
         logOrphanedInboxes()
 
-        setupWebView()
-        setContentView(webView)
+        // Serialized startup chain:
+        //   permissions -> SAF picker (if needed) -> server -> WebView load.
+        // The old flow launched permissions AND SAF at the same time, which
+        // caused the permission dialog to dismiss the SAF picker underneath
+        // and leave the app in an unusable state.
+        requestStartupPermissions()
+    }
 
-        try {
-            val serviceIntent = Intent(this, ServerService::class.java)
-            ContextCompat.startForegroundService(this, serviceIntent)
-            Log.i(TAG, "ServerService start OK")
-        } catch (e: Throwable) {
-            Log.e(TAG, "ServerService start FAILED", e)
-        }
-
+private fun showSplash() {
         webView.loadData(
             """
             <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -144,7 +173,54 @@ class MainActivity : AppCompatActivity() {
             "text/html",
             "UTF-8"
         )
+    }
 
+    private val startupPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        Log.i(TAG, "Startup permissions result: $results")
+        // Proceed regardless of grant state. Camera re-requests on demand.
+        // SAF grants its own folder access. Media perms are best-effort.
+        proceedAfterPermissions()
+    }
+
+    private fun requestStartupPermissions() {
+        if (Build.VERSION.SDK_INT < 23) {
+            proceedAfterPermissions()
+            return
+        }
+        val perms = mutableListOf(Manifest.permission.CAMERA)
+        if (Build.VERSION.SDK_INT >= 33) {
+            perms.add("android.permission.READ_MEDIA_IMAGES")
+            perms.add("android.permission.READ_MEDIA_VIDEO")
+        } else {
+            perms.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+        val allGranted = perms.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (allGranted) {
+            Log.i(TAG, "All startup permissions already granted")
+            proceedAfterPermissions()
+        } else {
+            Log.i(TAG, "Requesting startup permissions: $perms")
+            startupPermissionLauncher.launch(perms.toTypedArray())
+        }
+    }
+
+    private fun proceedAfterPermissions() {
+        if (!StorageConfig.hasBaseDir(this)) {
+            Log.i(TAG, "No base dir, launching SAF picker")
+            launchSafPicker()
+        } else {
+            Log.i(TAG, "Base dir: " + StorageConfig.baseDirFile(this))
+            startServerServiceAndLoad()
+        }
+    }
+
+    private fun startServerServiceAndLoad() {
+        startServerService()
         waitForServerAndLoad()
     }
 
@@ -153,6 +229,37 @@ class MainActivity : AppCompatActivity() {
     // ---------------------------------------------------------------
 
     @SuppressLint("SetJavaScriptEnabled")
+    /**
+     * Starts the foreground server service with the current base dir.
+     */
+    private fun startServerService() {
+        try {
+            val serviceIntent = Intent(this, ServerService::class.java)
+            ContextCompat.startForegroundService(this, serviceIntent)
+            Log.i(TAG, "ServerService start OK")
+        } catch (e: Throwable) {
+            Log.e(TAG, "ServerService start FAILED", e)
+        }
+    }
+
+    /**
+     * Stops and restarts the server so it picks up the current base dir.
+     * Called after the SAF picker sets a folder.
+     */
+    private fun restartServer() {
+        try {
+            stopService(Intent(this, ServerService::class.java))
+        } catch (e: Throwable) {
+            Log.w(TAG, "stopService failed: " + e.message)
+        }
+        // Brief delay so the old Go server shuts down cleanly.
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            startServerService()
+            // Reload the WebView to trigger /browse against the new folder
+            webView.loadUrl("http://127.0.0.1:8080/browse")
+        }, 500)
+    }
+
     private fun setupWebView() {
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
@@ -168,9 +275,12 @@ class MainActivity : AppCompatActivity() {
                 // Deferred thumbnail generation: any video without a
                 // matching .thumbs/<base>.jpg gets one generated in the
                 // background. Cheap after first run (skips existing thumbs).
+                val appContext = applicationContext
                 Thread {
                     try {
-                        VideoThumbnails.generateMissingIn(File(filesDir, "IndigiSnap"))
+                        StorageConfig.baseDirFile(appContext)?.let {
+                            VideoThumbnails.generateMissingIn(it)
+                        }
                     } catch (e: Exception) {
                         Log.w(TAG, "video thumb scan failed: " + e.message)
                     }
@@ -567,7 +677,9 @@ class MainActivity : AppCompatActivity() {
     // ---------------------------------------------------------------
 
     private fun createInboxOutputFile(sessionId: String, ext: String): Pair<Uri, File> {
-        val inboxDir = File(File(filesDir, "IndigiSnap/.inbox"), sessionId)
+        val baseDir = StorageConfig.baseDirFile(this)
+            ?: throw IllegalStateException("Storage not configured")
+        val inboxDir = File(File(baseDir, ".inbox"), sessionId)
         if (!inboxDir.exists()) inboxDir.mkdirs()
         val ts = System.currentTimeMillis()
         val seq = activeSessionShotCount + 1
@@ -579,7 +691,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun logOrphanedInboxes() {
         try {
-            val inboxRoot = File(filesDir, "IndigiSnap/.inbox")
+            val baseDir = StorageConfig.baseDirFile(this) ?: return
+            val inboxRoot = File(baseDir, ".inbox")
             if (!inboxRoot.exists()) return
             val sessions = inboxRoot.listFiles()?.filter { it.isDirectory } ?: emptyList()
             if (sessions.isEmpty()) return
