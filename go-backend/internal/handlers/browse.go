@@ -13,6 +13,8 @@ import (
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/security"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/ui"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/video"
+
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/paths"
 )
 
 type BrowseHandler struct {
@@ -370,36 +372,26 @@ func toUIRecents(in []meta.RecentEntry) []ui.Recent {
 // naming first, then falls back to the legacy "<basename>_thumb.jpg" naming.
 //
 // videoPath is the absolute path to the video file.
+// findVideoThumbURL returns the URL-safe /thumb/ path for a video's
+// thumbnail, or "" if none exists. Thumbnails live in ThumbDir mirroring
+// the media tree, keyed by the video's relative path.
 func findVideoThumbURL(baseDir, videoPath string) string {
-	ext := filepath.Ext(videoPath)
-	base := strings.TrimSuffix(videoPath, ext)
-	baseName := filepath.Base(base)
-	dir := filepath.Dir(videoPath)
-
-	// New naming: .thumbs/<basename>.jpg
-	newThumb := filepath.Join(dir, ".thumbs", baseName+".jpg")
-	// Legacy naming: <basename>_thumb.jpg
-	legacyThumb := filepath.Join(dir, baseName+"_thumb.jpg")
-
-	var chosen string
-	if _, err := os.Stat(newThumb); err == nil {
-		chosen = newThumb
-	} else if _, err := os.Stat(legacyThumb); err == nil {
-		chosen = legacyThumb
-	} else {
-		return ""
-	}
-
-	rel, err := filepath.Rel(baseDir, chosen)
+	rel, err := paths.RelOf(videoPath)
 	if err != nil {
 		return ""
 	}
+	thumbPath := paths.ThumbFile(rel)
+	if thumbPath == "" {
+		return ""
+	}
+	if _, err := os.Stat(thumbPath); err != nil {
+		return ""
+	}
 	// Encode each path segment individually so that "/" separators are
-	// preserved (url.QueryEscape would turn them into %2F, breaking the
-	// route). Spaces become %20, which the /view handler decodes correctly.
+	// preserved. Spaces become %20.
 	parts := strings.Split(filepath.ToSlash(rel), "/")
 	for i, s := range parts {
 		parts[i] = url.PathEscape(s)
 	}
-	return "/view/" + strings.Join(parts, "/")
+	return "/thumb/" + strings.Join(parts, "/")
 }

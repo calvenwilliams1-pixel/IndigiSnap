@@ -66,6 +66,9 @@ func buildMux(baseDir string) *http.ServeMux {
 	mux.Handle("/browse/", browseHandler)
 	mux.Handle("/view/", viewHandler)
 
+	thumbHandler := handlers.NewThumbHandler()
+	mux.Handle("/thumb/", thumbHandler)
+
 	mux.HandleFunc("/create_folder/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", 405)

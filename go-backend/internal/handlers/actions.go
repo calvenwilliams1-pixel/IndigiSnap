@@ -21,6 +21,8 @@ import (
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/meta"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/security"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/video"
+
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/paths"
 )
 
 // ActionHandler handles POST operations: create/rename/delete folders,
@@ -323,15 +325,24 @@ func (h *ActionHandler) SetSort(w http.ResponseWriter, r *http.Request) {
 //
 // Silently ignores missing files. Safe to call on any media path.
 func deleteVideoThumbnails(fullPath string) {
-	base := strings.TrimSuffix(fullPath, filepath.Ext(fullPath))
-	baseName := filepath.Base(base)
-
-	// Legacy: same folder, _thumb.jpg suffix
-	_ = os.Remove(base + "_thumb.jpg")
-
-	// New: hidden .thumbs/ subfolder
-	thumbsDir := filepath.Join(filepath.Dir(fullPath), ".thumbs")
-	_ = os.Remove(filepath.Join(thumbsDir, baseName+".jpg"))
+	rel, err := paths.RelOf(fullPath)
+	if err != nil {
+		// Not inside base dir — nothing to do.
+		return
+	}
+	thumbPath := paths.ThumbFile(rel)
+	if thumbPath == "" {
+		return
+	}
+	_ = os.Remove(thumbPath)
+	// Also prune the mirror-tree folder if empty.
+	dir := filepath.Dir(thumbPath)
+	if dir != paths.ThumbDir() {
+		entries, err := os.ReadDir(dir)
+		if err == nil && len(entries) == 0 {
+			_ = os.Remove(dir)
+		}
+	}
 }
 
 // RotatePicture handles POST /rotate_picture/<path>?degrees=90|180|270.
