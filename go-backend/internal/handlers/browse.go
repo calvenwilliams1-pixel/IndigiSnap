@@ -61,6 +61,10 @@ func (h *BrowseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reconcile metadata: prune favorites, recents, and folder meta whose
+	// targets no longer exist. Cheap on a personal library, self-healing.
+	meta.Reconcile()
+
 	// Clean up any orphaned thumbnails before rendering the folder
 	video.CleanOrphanThumbnails(fullPath)
 

@@ -193,6 +193,167 @@ func CleanupFavorites(_ string) []string {
 	return kept
 }
 
+// Reconcile prunes metadata entries whose target paths no longer exist.
+// Called at the top of every browse. Self-healing: catches orphans from
+// out-of-band changes (Samsung Files, system gallery, adb) that hooks
+// would miss, and from crashes mid-operation.
+//
+// Prunes:
+//   1. favorites.json entries whose file is gone
+//   2. recents.json entries whose folder is gone
+//   3. per-folder metadata for folders that no longer exist
+//   4. folder meta "thumb" pointers to gone files (cleared, not removed)
+//   5. folder meta "previews" entries pointing at gone files
+func Reconcile() {
+	reconcileFavorites()
+	reconcileRecents()
+	reconcileFolderMeta()
+}
+
+// reconcileFavorites drops favorites whose file no longer exists.
+func reconcileFavorites() {
+	favs := LoadFavorites("")
+	if len(favs) == 0 {
+		return
+	}
+	baseDir := paths.BaseDir()
+	kept := make([]string, 0, len(favs))
+	for _, rel := range favs {
+		full := filepath.Join(baseDir, filepath.FromSlash(rel))
+		if _, err := os.Stat(full); err == nil {
+			kept = append(kept, rel)
+		}
+	}
+	if len(kept) != len(favs) {
+		_ = SaveFavorites("", kept)
+		log.Printf("reconcile: favorites %d -> %d", len(favs), len(kept))
+	}
+}
+
+// reconcileRecents drops recents whose folder no longer exists.
+func reconcileRecents() {
+	recentsMu.Lock()
+	defer recentsMu.Unlock()
+
+	entries := LoadRecents("")
+	if len(entries) == 0 {
+		return
+	}
+	baseDir := paths.BaseDir()
+	kept := make([]RecentEntry, 0, len(entries))
+	for _, e := range entries {
+		full := filepath.Join(baseDir, filepath.FromSlash(e.Path))
+		if info, err := os.Stat(full); err == nil && info.IsDir() {
+			kept = append(kept, e)
+		}
+	}
+	if len(kept) != len(entries) {
+		_ = SaveRecents("", kept)
+		log.Printf("reconcile: recents %d -> %d", len(entries), len(kept))
+	}
+}
+
+// reconcileFolderMeta walks the mirror-tree metadata root and removes
+// metadata for folders that no longer exist under BaseDir. It also
+// prunes stale "thumb" and "previews" pointers within surviving folders.
+func reconcileFolderMeta() {
+	metaRoot := filepath.Join(paths.MetaDir(), "meta")
+	if _, err := os.Stat(metaRoot); err != nil {
+		return
+	}
+
+	baseDir := paths.BaseDir()
+	removed := 0
+	prunedPtrs := 0
+
+	// Walk the metadata tree. For each _indigisnap_meta.json file, derive
+	// the corresponding media folder path and check existence.
+	_ = filepath.Walk(metaRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if info.Name() != "_indigisnap_meta.json" {
+			return nil
+		}
+
+		// Derive the media folder this metadata belongs to.
+		// {MetaDir}/meta/a/b/_indigisnap_meta.json -> a/b
+		rel, err := filepath.Rel(metaRoot, filepath.Dir(path))
+		if err != nil {
+			return nil
+		}
+		if rel == "." {
+			rel = ""
+		}
+		var mediaFolder string
+		if rel == "" {
+			mediaFolder = baseDir
+		} else {
+			mediaFolder = filepath.Join(baseDir, rel)
+		}
+
+		// If the media folder no longer exists, delete the metadata file
+		// and any empty directories left behind.
+		if _, err := os.Stat(mediaFolder); os.IsNotExist(err) {
+			_ = os.Remove(path)
+			removed++
+			// Prune empty parent directories up to metaRoot
+			dir := filepath.Dir(path)
+			for dir != metaRoot {
+				entries, err := os.ReadDir(dir)
+				if err != nil || len(entries) > 0 {
+					break
+				}
+				_ = os.Remove(dir)
+				dir = filepath.Dir(dir)
+			}
+			return nil
+		}
+
+		// Media folder exists: check thumb and previews pointers.
+		m := GetMeta(mediaFolder)
+		changed := false
+		if m.Thumb != nil && *m.Thumb != "" {
+			thumbRel := filepath.FromSlash(*m.Thumb)
+			if _, err := os.Stat(filepath.Join(mediaFolder, thumbRel)); err != nil {
+				m.Thumb = nil
+				changed = true
+			}
+		}
+		if len(m.Previews) > 0 {
+			kept := make([]string, 0, len(m.Previews))
+			for _, p := range m.Previews {
+				// Previews may be URL-encoded (e.g. "logo%2F...")
+				decoded, err := url.QueryUnescape(p)
+				if err != nil {
+					decoded = p
+				}
+				decoded = filepath.FromSlash(decoded)
+				if _, err := os.Stat(filepath.Join(mediaFolder, decoded)); err == nil {
+					kept = append(kept, p)
+				}
+			}
+			removedCount := len(m.Previews) - len(kept)
+			if removedCount > 0 {
+				m.Previews = kept
+				changed = true
+				prunedPtrs += removedCount
+			}
+		}
+		if changed {
+			_ = SaveMeta(mediaFolder, m)
+		}
+		return nil
+	})
+
+	if removed > 0 || prunedPtrs > 0 {
+		log.Printf("reconcile: folder meta removed=%d pruned_ptrs=%d", removed, prunedPtrs)
+	}
+}
+
 var nonAlnum = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 var vowels = regexp.MustCompile(`[aeiouAEIOU]`)
 
