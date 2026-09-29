@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/paths"
 )
 
 var (
@@ -27,12 +29,27 @@ var (
 )
 
 //export Java_com_indigisnap_app_ServerBridge_StartServer
-func Java_com_indigisnap_app_ServerBridge_StartServer(env *C.JNIEnv, clazz C.jclass, port C.jint, baseDir C.jstring) {
+func Java_com_indigisnap_app_ServerBridge_StartServer(
+	env *C.JNIEnv,
+	clazz C.jclass,
+	port C.jint,
+	baseDir C.jstring,
+	metaDir C.jstring,
+	thumbDir C.jstring,
+) {
 	baseC := C.indigisnap_jstring_to_c(env, baseDir)
 	base := C.GoString(baseC)
 	C.indigisnap_release_jstring(env, baseDir, baseC)
 
-	startServer(int(port), base)
+	metaC := C.indigisnap_jstring_to_c(env, metaDir)
+	meta := C.GoString(metaC)
+	C.indigisnap_release_jstring(env, metaDir, metaC)
+
+	thumbC := C.indigisnap_jstring_to_c(env, thumbDir)
+	thumb := C.GoString(thumbC)
+	C.indigisnap_release_jstring(env, thumbDir, thumbC)
+
+	startServer(int(port), base, meta, thumb)
 }
 
 //export Java_com_indigisnap_app_ServerBridge_StopServer
@@ -40,7 +57,7 @@ func Java_com_indigisnap_app_ServerBridge_StopServer(env *C.JNIEnv, clazz C.jcla
 	stopServer()
 }
 
-func startServer(port int, base string) {
+func startServer(port int, base, meta, thumb string) {
 	serverMu.Lock()
 	defer serverMu.Unlock()
 
@@ -52,11 +69,27 @@ func startServer(port int, base string) {
 	if base == "" {
 		base = "./IndigiSnap"
 	}
+	if meta == "" {
+		meta = "./IndigiSnap-meta"
+	}
+	if thumb == "" {
+		thumb = "./IndigiSnap-thumbs"
+	}
 
 	if err := os.MkdirAll(base, 0755); err != nil {
 		log.Printf("Cannot create base dir %s: %v", base, err)
 		return
 	}
+	if err := os.MkdirAll(meta, 0755); err != nil {
+		log.Printf("Cannot create meta dir %s: %v", meta, err)
+		return
+	}
+	if err := os.MkdirAll(thumb, 0755); err != nil {
+		log.Printf("Cannot create thumb dir %s: %v", thumb, err)
+		return
+	}
+
+	paths.Init(base, meta, thumb)
 
 	mux := buildMux(base)
 	addr := "127.0.0.1:" + itoa(port)

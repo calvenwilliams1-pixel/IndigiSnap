@@ -61,10 +61,33 @@ class ServerService : Service() {
             baseDir.mkdirs()
         }
         val basePath = baseDir.absolutePath
-        android.util.Log.e("IndigiSnapDebug", "Base path: $basePath")
-        android.util.Log.e("IndigiSnapDebug", "About to call ServerBridge.StartServer")
+
+        // Metadata root: app-private filesDir. Survives app updates, dies
+        // on uninstall. Contains favorites, recents, per-folder meta.
+        val metaDir = filesDir
+        if (!metaDir.exists()) {
+            metaDir.mkdirs()
+        }
+        if (!metaDir.canWrite()) {
+            android.util.Log.e("IndigiSnapDebug", "metaDir not writable: " + metaDir.absolutePath)
+            return
+        }
+        val metaPath = metaDir.absolutePath
+
+        // Thumbnail root: app-cache, safe to clear under storage pressure.
+        val thumbDir = java.io.File(cacheDir, "indigisnap-thumbs")
+        if (!thumbDir.exists()) {
+            thumbDir.mkdirs()
+        }
+        val thumbPath = thumbDir.absolutePath
+
+        android.util.Log.e("IndigiSnapDebug", "BUILD_MARKER=2ai-1")  // confirm fresh APK
+        android.util.Log.e("IndigiSnapDebug", "Base path:  $basePath")
+        android.util.Log.e("IndigiSnapDebug", "Meta path:  $metaPath")
+        android.util.Log.e("IndigiSnapDebug", "Thumb path: $thumbPath")
+        android.util.Log.e("IndigiSnapDebug", "About to call ServerBridge.StartServer(4-param)")
         try {
-            ServerBridge.StartServer(PORT, basePath)
+            ServerBridge.StartServer(PORT, basePath, metaPath, thumbPath)
             android.util.Log.e("IndigiSnapDebug", "ServerBridge.StartServer returned OK")
         } catch (e: Throwable) {
             android.util.Log.e("IndigiSnapDebug", "ServerBridge.StartServer FAILED", e)

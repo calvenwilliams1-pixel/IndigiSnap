@@ -8,6 +8,9 @@ import (
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/handlers"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/meta"
 	"github.com/calvenwilliams1-pixel/indigisnap/internal/ui"
+	"path/filepath"
+
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/paths"
 )
 
 func main() {
@@ -24,6 +27,12 @@ func main() {
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		log.Fatalf("Cannot create base dir %s: %v", baseDir, err)
 	}
+
+	// Initialize the paths package so any new code that uses it works
+	// in the standalone server. Defaults: base = baseDir, meta and thumb
+	// live next to it (developer convenience; production passes explicit
+	// dirs through JNI).
+	paths.Init(baseDir, filepath.Join(baseDir, "..", "indigisnap-meta"), filepath.Join(baseDir, "..", "indigisnap-thumbs"))
 
 	mux := buildMux(baseDir)
 	addr := "127.0.0.1:" + port
