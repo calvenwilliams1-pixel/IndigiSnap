@@ -65,47 +65,6 @@ class MainActivity : AppCompatActivity() {
     // Launchers (modern Activity Result API)
     // ---------------------------------------------------------------
 
-    private val safFolderLauncher: androidx.activity.result.ActivityResultLauncher<Uri?> =
-        registerForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri == null) {
-            // User cancelled the picker. Re-prompt on next launch.
-            Log.w(TAG, "SAF picker cancelled")
-            android.widget.Toast.makeText(
-                this,
-                "IndigiSnap needs a folder to store your photos.",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-            return@registerForActivityResult
-        }
-        // Persist read/write access across app restarts
-        try {
-            contentResolver.takePersistableUriPermission(
-                uri,
-                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "takePersistableUriPermission failed: " + e.message)
-        }
-        if (StorageConfig.saveFromUri(this, uri)) {
-            Log.i(TAG, "Storage configured: " + StorageConfig.baseDirFile(this))
-            startServerServiceAndLoad()
-        } else {
-            android.widget.Toast.makeText(
-                this,
-                "Please pick a folder on internal storage (not SD card or cloud).",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-            launchSafPicker()
-        }
-    }
-
-    private fun launchSafPicker() {
-        safFolderLauncher.launch(null)
-    }
-
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -179,9 +138,53 @@ private fun showSplash() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         Log.i(TAG, "Startup permissions result: $results")
-        // Proceed regardless of grant state. Camera re-requests on demand.
-        // SAF grants its own folder access. Media perms are best-effort.
+        // Media permissions are required for the gallery to see any files.
+        // If denied, show a clear explanation and offer a retry path.
+        val mediaGranted = hasRequiredMediaPermissions()
+        if (!mediaGranted) {
+            showMediaPermissionDeniedDialog()
+            return@registerForActivityResult
+        }
         proceedAfterPermissions()
+    }
+
+    /**
+     * Returns true if the app has the permissions needed to read media.
+     * Android 13+: READ_MEDIA_IMAGES or READ_MEDIA_VIDEO.
+     * Android 12 and below: READ_EXTERNAL_STORAGE.
+     */
+    private fun hasRequiredMediaPermissions(): Boolean {
+        return if (Build.VERSION.SDK_INT >= 33) {
+            (ContextCompat.checkSelfPermission(this, "android.permission.READ_MEDIA_IMAGES")
+                == PackageManager.PERMISSION_GRANTED) ||
+            (ContextCompat.checkSelfPermission(this, "android.permission.READ_MEDIA_VIDEO")
+                == PackageManager.PERMISSION_GRANTED)
+        } else {
+            (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED)
+        }
+    }
+
+    private fun showMediaPermissionDeniedDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Media access needed")
+            .setMessage(
+                "IndigiSnap needs access to your photos and videos to show your " +
+                "library. Please grant access in Settings."
+            )
+            .setPositiveButton("Open Settings") { _, _ ->
+                try {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", packageName, null)
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to open settings", e)
+                }
+            }
+            .setNegativeButton("Cancel") { _, _ -> }
+            .setCancelable(false)
+            .show()
     }
 
     private fun requestStartupPermissions() {
@@ -210,13 +213,18 @@ private fun showSplash() {
     }
 
     private fun proceedAfterPermissions() {
-        if (!StorageConfig.hasBaseDir(this)) {
-            Log.i(TAG, "No base dir, launching SAF picker")
-            launchSafPicker()
-        } else {
-            Log.i(TAG, "Base dir: " + StorageConfig.baseDirFile(this))
-            startServerServiceAndLoad()
+        // Ensure Pictures/IndigiSnap exists. Creates on first launch.
+        if (!StorageConfig.ensureBaseDir(this)) {
+            Log.e(TAG, "ensureBaseDir failed")
+            android.widget.Toast.makeText(
+                this,
+                "Cannot access Pictures folder. Check storage permissions.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return
         }
+        Log.i(TAG, "Base dir: " + StorageConfig.baseDirFile(this))
+        startServerServiceAndLoad()
     }
 
     private fun startServerServiceAndLoad() {
