@@ -3,6 +3,7 @@ package meta
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -11,6 +12,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/fsutil"
+	"github.com/calvenwilliams1-pixel/indigisnap/internal/paths"
 )
 
 // FolderMeta mirrors the Python .indigisnap_meta.json schema.
@@ -32,8 +36,29 @@ type Breadcrumb struct {
 	URL   string
 }
 
-const metaFilename = ".indigisnap_meta.json"
-const favoritesFilename = ".indigisnap_favorites.json"
+// perFileLocks serializes read-modify-write sequences per file path.
+// Without this, two concurrent ToggleFavorite or AddRecent calls can
+// lose updates even with atomic writes.
+var perFileLocks sync.Map
+
+func withFileLock(path string, fn func() error) error {
+	m, _ := perFileLocks.LoadOrStore(path, &sync.Mutex{})
+	mu := m.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+	return fn()
+}
+
+// relOf converts an absolute folder path into a slash-separated path
+// relative to BaseDir. Returns "" on error (callers log and continue).
+func relOf(full string) string {
+	rel, err := paths.RelOf(full)
+	if err != nil {
+		log.Printf("meta: relOf(%q) failed: %v", full, err)
+		return ""
+	}
+	return rel
+}
 
 // DefaultMeta returns a fresh metadata struct with sensible defaults.
 func DefaultMeta() FolderMeta {
@@ -51,9 +76,10 @@ func DefaultMeta() FolderMeta {
 	}
 }
 
-// GetMeta reads folder metadata, filling in defaults for missing fields.
+// GetMeta reads folder metadata from the mirrored metadata tree.
+// Fills in defaults for missing fields.
 func GetMeta(folderPath string) FolderMeta {
-	path := filepath.Join(folderPath, metaFilename)
+	path := paths.MetaFile(relOf(folderPath))
 	defaults := DefaultMeta()
 
 	data, err := os.ReadFile(path)
@@ -87,20 +113,20 @@ func GetMeta(folderPath string) FolderMeta {
 	return m
 }
 
-// SaveMeta writes folder metadata to disk.
+// SaveMeta writes folder metadata to the mirrored metadata tree.
+// Atomic write via fsutil.
 func SaveMeta(folderPath string, m FolderMeta) error {
 	m.UpdatedAt = time.Now().Format(time.RFC3339)
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(folderPath, metaFilename), data, 0644)
+	return fsutil.WriteFileAtomic(paths.MetaFile(relOf(folderPath)), data, 0644)
 }
 
-// LoadFavorites reads the global favorites list from BASE_DIR.
-func LoadFavorites(baseDir string) []string {
-	path := filepath.Join(baseDir, favoritesFilename)
-	data, err := os.ReadFile(path)
+// LoadFavorites reads the global favorites list from MetaDir.
+func LoadFavorites(_ string) []string {
+	data, err := os.ReadFile(paths.FavoritesFile())
 	if err != nil {
 		return []string{}
 	}
@@ -114,40 +140,46 @@ func LoadFavorites(baseDir string) []string {
 	return favs
 }
 
-// SaveFavorites writes the favorites list to disk.
-func SaveFavorites(baseDir string, favs []string) error {
+// SaveFavorites writes the favorites list to MetaDir atomically.
+func SaveFavorites(_ string, favs []string) error {
 	data, err := json.MarshalIndent(favs, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(baseDir, favoritesFilename), data, 0644)
+	return fsutil.WriteFileAtomic(paths.FavoritesFile(), data, 0644)
 }
 
 // ToggleFavorite flips the favorite state of a relative path and returns
-// the new state.
-func ToggleFavorite(baseDir, relPath string) (bool, error) {
-	favs := LoadFavorites(baseDir)
-	found := false
-	newFavs := make([]string, 0, len(favs)+1)
-	for _, f := range favs {
-		if f == relPath {
-			found = true
-			continue
+// the new state. Serialized per-file to avoid lost updates.
+func ToggleFavorite(_ string, relPath string) (bool, error) {
+	var newState bool
+	err := withFileLock(paths.FavoritesFile(), func() error {
+		favs := LoadFavorites("")
+		found := false
+		newFavs := make([]string, 0, len(favs)+1)
+		for _, f := range favs {
+			if f == relPath {
+				found = true
+				continue
+			}
+			newFavs = append(newFavs, f)
 		}
-		newFavs = append(newFavs, f)
-	}
-	if !found {
-		newFavs = append(newFavs, relPath)
-	}
-	if err := SaveFavorites(baseDir, newFavs); err != nil {
-		return false, err
-	}
-	return !found, nil
+		if !found {
+			newFavs = append(newFavs, relPath)
+		}
+		if err := SaveFavorites("", newFavs); err != nil {
+			return err
+		}
+		newState = !found
+		return nil
+	})
+	return newState, err
 }
 
 // CleanupFavorites removes favorites that no longer exist on disk.
-func CleanupFavorites(baseDir string) []string {
-	favs := LoadFavorites(baseDir)
+func CleanupFavorites(_ string) []string {
+	favs := LoadFavorites("")
+	baseDir := paths.BaseDir()
 	kept := make([]string, 0, len(favs))
 	for _, rel := range favs {
 		full := filepath.Join(baseDir, filepath.FromSlash(rel))
@@ -156,7 +188,7 @@ func CleanupFavorites(baseDir string) []string {
 		}
 	}
 	if len(kept) != len(favs) {
-		_ = SaveFavorites(baseDir, kept)
+		_ = SaveFavorites("", kept)
 	}
 	return kept
 }
@@ -266,8 +298,8 @@ var ErrNotImplemented = errors.New("not implemented")
 // SVG is allowed because this is a single-user installation. Multi-user
 // deployments may wish to restrict SVG uploads because SVG can contain
 // active content.
-func GetLogoPath(baseDir string) string {
-	logoDir := filepath.Join(baseDir, "logo")
+func GetLogoPath(_ string) string {
+	logoDir := paths.LogoDir()
 	entries, err := os.ReadDir(logoDir)
 	if err != nil {
 		return ""
@@ -314,8 +346,8 @@ func GetLogoPath(baseDir string) string {
 
 // GetLogoURL returns the URL path for the logo (/logo/<filename>), or ""
 // if no logo file exists.
-func GetLogoURL(baseDir string) string {
-	path := GetLogoPath(baseDir)
+func GetLogoURL(_ string) string {
+	path := GetLogoPath("")
 	if path == "" {
 		return ""
 	}
@@ -328,8 +360,6 @@ type RecentEntry struct {
 	Path string `json:"path"`
 }
 
-const recentsFilename = ".indigisnap_recents.json"
-
 var recentsMu sync.Mutex
 
 // LoadRecents returns the last-5 recents list, filtering stale entries.
@@ -337,9 +367,8 @@ var recentsMu sync.Mutex
 //
 // If the file is missing or malformed, returns an empty list.
 // Transient stat errors (not IsNotExist) keep the entry.
-func LoadRecents(baseDir string) []RecentEntry {
-	path := filepath.Join(baseDir, recentsFilename)
-	data, err := os.ReadFile(path)
+func LoadRecents(_ string) []RecentEntry {
+	data, err := os.ReadFile(paths.RecentsFile())
 	if err != nil {
 		return []RecentEntry{}
 	}
@@ -348,6 +377,7 @@ func LoadRecents(baseDir string) []RecentEntry {
 		return []RecentEntry{}
 	}
 
+	baseDir := paths.BaseDir()
 	kept := make([]RecentEntry, 0, len(entries))
 	for _, e := range entries {
 		full := filepath.Join(baseDir, filepath.FromSlash(e.Path))
@@ -365,7 +395,7 @@ func LoadRecents(baseDir string) []RecentEntry {
 }
 
 // SaveRecents writes recents to BASE_DIR/.indigisnap_recents.json
-func SaveRecents(baseDir string, entries []RecentEntry) error {
+func SaveRecents(_ string, entries []RecentEntry) error {
 	if entries == nil {
 		entries = []RecentEntry{}
 	}
@@ -373,7 +403,7 @@ func SaveRecents(baseDir string, entries []RecentEntry) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(baseDir, recentsFilename), data, 0644)
+	return fsutil.WriteFileAtomic(paths.RecentsFile(), data, 0644)
 }
 
 // AddRecent updates recents with a newly visited folder and returns the new list.
